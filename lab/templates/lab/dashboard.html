@@ -13,6 +13,9 @@
   header form { margin: 0; }
   .link { background: none; border: 0; color: #2563eb; cursor: pointer; font: inherit; }
   .sim { background: #fef3c7; color: #92400e; padding: 8px 20px; font-size: 14px; text-align: center; }
+  .mode-badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+  .mode-badge.sim { background: #fef3c7; color: #92400e; }
+  .mode-badge.live { background: #dcfce7; color: #15803d; }
 
   .bar { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between;
          padding: 12px 20px; }
@@ -30,13 +33,25 @@
   .actions button { font: inherit; font-size: 14px; padding: 8px 14px; border-radius: 8px; cursor: pointer;
                     border: 1px solid #d1d5db; background: #fff; }
   .actions button:hover { background: #f9fafb; }
+  .actions button:disabled { opacity: .5; cursor: not-allowed; }
   .actions .danger { background: #dc2626; border-color: #dc2626; color: #fff; }
   .actions .danger:hover { background: #b91c1c; }
   .actions .ok { background: #16a34a; border-color: #16a34a; color: #fff; }
   .actions .ok:hover { background: #15803d; }
+  .actions .primary { background: #2563eb; border-color: #2563eb; color: #fff; }
+  .actions .primary:hover { background: #1d4ed8; }
   .sep { width: 1px; background: #d1d5db; margin: 0 4px; }
 
   #msg { margin: 0 20px; min-height: 22px; font-size: 14px; color: #374151; }
+  #session-report { margin: 0 20px 10px; padding: 12px 16px; background: #fff; border: 1px solid #e5e7eb;
+                    border-radius: 10px; font-size: 14px; display: none; }
+  #session-report h3 { margin: 0 0 8px; font-size: 15px; }
+  #session-report .row { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 6px; }
+  #session-report .stat { background: #f8fafc; padding: 4px 12px; border-radius: 6px; }
+  #session-report table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
+  #session-report th, #session-report td { padding: 4px 8px; border-bottom: 1px solid #f1f5f9; text-align: start; }
+  #session-report .good { color: #15803d; }
+  #session-report .bad { color: #b91c1c; }
 
   #grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 10px; padding: 12px 20px 28px; }
   @media (max-width: 1000px) { #grid { grid-template-columns: repeat(5, 1fr); } }
@@ -59,11 +74,16 @@
   a.link { text-decoration: none; }
   .tile .lock { position: absolute; top: 6px; inset-inline-start: 6px; background: #dc2626; color: #fff;
                 font-size: 11px; padding: 1px 7px; border-radius: 999px; }
+  .tile .q { position: absolute; top: 6px; inset-inline-end: 6px; font-size: 11px; padding: 1px 6px;
+             border-radius: 999px; background: rgba(0,0,0,.25); color: #fff; }
+  .tile .q.good { background: #15803d; }
+  .tile .q.warn { background: #d97706; }
+  .tile .q.bad { background: #dc2626; }
 </style>
 </head>
 <body>
 <header>
-  <h1>لوحة تحكم معمل اللغات</h1>
+  <h1>لوحة تحكم معمل اللغات <span id="mode-badge" class="mode-badge"></span></h1>
   <form method="post" action="{% url 'logout' %}">{% csrf_token %}
     <a class="link" href="{% url 'setup' %}">الإعدادات والاتصال</a> &middot;
     <span>{{ request.user.get_username }}</span> &middot;
@@ -72,7 +92,7 @@
 </header>
 
 {% if simulate %}
-<div class="sim">وضع تجريبي: الحالات المعروضة وهمية ولا يتم التحكم في أي جهاز حقيقي (LAB_SIMULATE)</div>
+<div class="sim">وضع تجريبي: الحالات المعروضة وهمية ولا يتم التحكم في أي جهاز حقيقي (LAB_SIMULATE=1). اضبط LAB_SIMULATE=0 للتشغيل الفعلي.</div>
 {% endif %}
 
 <div class="bar">
@@ -84,6 +104,9 @@
     <span class="chip"><span class="dot selected"></span>محدد <b id="c-selected">0</b></span>
   </div>
   <div class="actions">
+    <button class="primary" id="btn-start-session">بدء الحصة</button>
+    <button class="ok" id="btn-end-session">إنهاء الحصة</button>
+    <span class="sep"></span>
     <button data-do="select-online">تحديد المتصل</button>
     <button data-do="clear">إلغاء التحديد</button>
     <span class="sep"></span>
@@ -94,8 +117,11 @@
     <span class="sep"></span>
     <button class="danger" data-act="lock" data-scope="all">حظر الكل</button>
     <button class="ok" data-act="unlock" data-scope="all">فتح الكل</button>
+    <button data-act="sync_locks" data-scope="all">مزامنة حالة الحظر</button>
   </div>
 </div>
+
+<div id="session-report"></div>
 
 <div class="bar" style="padding-top:0">
   <div class="stats">
@@ -121,15 +147,36 @@
 <script>
 const grid = document.getElementById('grid');
 const msg = document.getElementById('msg');
+const reportBox = document.getElementById('session-report');
 let devices = [];
 const selected = new Set();
 let busy = false;
 // حالة الصوت (تديرها كتلة الصوت أسفل الصفحة): ready = من فتح صفحة الطالب الآن
 const audioInfo = { ready: new Set(), on: false, all: false, set: new Set(), listen: null };
+// جودة الاتصال لكل جهاز: number -> {rtt, loss, quality}
+const quality = new Map();
 
 function csrf() {
   const m = document.cookie.match(/(?:^|; )csrftoken=([^;]+)/);
   return m ? decodeURIComponent(m[1]) : '';
+}
+
+function setMode(simulate) {
+  const badge = document.getElementById('mode-badge');
+  badge.textContent = simulate ? 'وضع تجريبي' : 'تشغيل فعلي';
+  badge.className = 'mode-badge ' + (simulate ? 'sim' : 'live');
+}
+
+function qualityClass(q) {
+  if (q == null) return '';
+  if (q.rtt < 80 && q.loss < 2) return 'good';
+  if (q.rtt < 200 && q.loss < 8) return 'warn';
+  return 'bad';
+}
+function qualityText(q) {
+  if (q == null) return '';
+  const cls = qualityClass(q);
+  return cls === 'good' ? 'ممتاز' : cls === 'warn' ? 'متوسط' : 'ضعيف';
 }
 
 function render() {
@@ -165,6 +212,14 @@ function render() {
       lock.className = 'lock'; lock.textContent = 'محظور';
       b.append(lock);
     }
+    const q = quality.get(d.number);
+    if (q && audioInfo.ready.has(d.number)) {
+      const qel = document.createElement('span');
+      qel.className = 'q ' + qualityClass(q);
+      qel.textContent = qualityText(q);
+      qel.title = `زمن الاستجابة: ${q.rtt}ms — فقدان: ${q.loss}%`;
+      b.append(qel);
+    }
     b.addEventListener('click', () => {
       selected.has(d.number) ? selected.delete(d.number) : selected.add(d.number);
       render();
@@ -184,6 +239,7 @@ async function refresh() {
     if (r.status === 401 || r.status === 403 || r.redirected) { location.reload(); return; }
     const data = await r.json();
     devices = data.devices;
+    setMode(data.simulate);
     render();
   } catch (e) {
     msg.textContent = 'تعذر تحديث الحالة، تأكد أن الخادم يعمل.';
@@ -193,10 +249,10 @@ async function refresh() {
 function summarize(act, res) {
   const verb = { lock: 'حظر', unlock: 'فتح', absent: 'تغييب', present: 'إلغاء تغييب' }[act];
   const parts = [`تم ${verb} ${res.done.length} جهاز`];
-  if (res.skipped.length) {
+  if (res.skipped && res.skipped.length) {
     parts.push('تم تخطي: ' + res.skipped.map(s => `${s.number} (${s.reason})`).join('، '));
   }
-  if (res.failed.length) {
+  if (res.failed && res.failed.length) {
     parts.push('فشل: ' + res.failed.map(f => `${f.number} (${f.error})`).join('، '));
   }
   return parts.join(' — ');
@@ -204,7 +260,7 @@ function summarize(act, res) {
 
 async function act(action, scope) {
   const numbers = scope === 'all' ? devices.map(d => d.number) : [...selected];
-  if (!numbers.length) { msg.textContent = 'حدد جهازًا واحدًا على الأقل أولاً.'; return; }
+  if (action !== 'sync_locks' && !numbers.length) { msg.textContent = 'حدد جهازًا واحدًا على الأقل أولاً.'; return; }
   busy = true;
   msg.textContent = 'جارٍ التنفيذ...';
   try {
@@ -214,7 +270,11 @@ async function act(action, scope) {
       body: JSON.stringify({ action, numbers }),
     });
     const res = await r.json();
-    msg.textContent = r.ok ? summarize(action, res) : (res.error || 'حدث خطأ');
+    if (action === 'sync_locks') {
+      msg.textContent = r.ok ? `تمت مزامنة حالة الحظر لـ ${res.synced} جهاز` : (res.error || 'خطأ');
+    } else {
+      msg.textContent = r.ok ? summarize(action, res) : (res.error || 'حدث خطأ');
+    }
   } catch (e) {
     msg.textContent = 'تعذر تنفيذ الأمر.';
   } finally {
@@ -223,6 +283,79 @@ async function act(action, scope) {
   }
 }
 
+// ---------------- بدء وإنهاء الحصة
+async function startSession() {
+  busy = true;
+  msg.textContent = 'جارٍ فحص كل الأجهزة...';
+  reportBox.style.display = 'none';
+  try {
+    const r = await fetch('/api/action/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
+      body: JSON.stringify({ action: 'start_session', numbers: [] }),
+    });
+    const res = await r.json();
+    if (!r.ok || !res.ok) { msg.textContent = res.error || 'تعذر بدء الحصة'; return; }
+    const rep = res.report;
+    let html = `<h3>تقرير بدء الحصة</h3>
+      <div class="row">
+        <span class="stat">الإجمالي: <b>${rep.total}</b></span>
+        <span class="stat good">متصل: <b>${rep.online}</b></span>
+        <span class="stat bad">غير متصل: <b>${rep.offline}</b></span>
+        <span class="stat">محظور مسبقًا: <b>${rep.already_locked}</b></span>
+      </div>`;
+    const problems = rep.devices.filter(d => !d.online || d.absent);
+    if (problems.length) {
+      html += '<table><thead><tr><th>الجهاز</th><th>الاسم</th><th>الحالة</th></tr></thead><tbody>';
+      problems.forEach(d => {
+        const st = !d.online ? 'غير متصل' : (d.absent ? 'غائب' : 'محظور');
+        html += `<tr><td>${d.number}</td><td>${d.name || ''}</td><td class="bad">${st}</td></tr>`;
+      });
+      html += '</tbody></table>';
+    } else {
+      html += '<p class="good">كل الأجهزة متصلة وجاهزة.</p>';
+    }
+    reportBox.innerHTML = html;
+    reportBox.style.display = 'block';
+    msg.textContent = `بدأت الحصة: ${rep.online} متصل من ${rep.total}`;
+  } catch (e) {
+    msg.textContent = 'تعذر بدء الحصة.';
+  } finally {
+    busy = false;
+    refresh();
+  }
+}
+
+async function endSession() {
+  if (!confirm('سيتم فتح كل الأجهزة المحظورة وإيقاف الصوت. متابعة؟')) return;
+  busy = true;
+  msg.textContent = 'جارٍ إنهاء الحصة...';
+  try {
+    const r = await fetch('/api/action/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
+      body: JSON.stringify({ action: 'end_session', numbers: [] }),
+    });
+    const res = await r.json();
+    if (!r.ok || !res.ok) { msg.textContent = res.error || 'تعذر إنهاء الحصة'; return; }
+    // إيقاف الصوت من الواجهة
+    if (window.__labAudioOff) window.__labAudioOff();
+    let text = res.message || `تم فتح ${res.unlocked} جهاز`;
+    if (res.failed && res.failed.length) {
+      text += ' — فشل: ' + res.failed.map(f => `${f.number} (${f.error})`).join('، ');
+    }
+    msg.textContent = text;
+    reportBox.style.display = 'none';
+  } catch (e) {
+    msg.textContent = 'تعذر إنهاء الحصة.';
+  } finally {
+    busy = false;
+    refresh();
+  }
+}
+
+document.getElementById('btn-start-session').addEventListener('click', startSession);
+document.getElementById('btn-end-session').addEventListener('click', endSession);
 document.querySelectorAll('[data-act]').forEach(btn =>
   btn.addEventListener('click', () => act(btn.dataset.act, btn.dataset.scope)));
 document.querySelector('[data-do="clear"]').addEventListener('click', () => { selected.clear(); render(); });
@@ -230,6 +363,16 @@ document.querySelector('[data-do="select-online"]').addEventListener('click', ()
   devices.filter(d => d.online && !d.absent).forEach(d => selected.add(d.number));
   render();
 });
+
+// تحديث جودة الاتصال من كتلة الصوت
+window.__labSetQuality = function(number, q) {
+  quality.set(number, q);
+  render();
+};
+window.__labClearQuality = function(number) {
+  quality.delete(number);
+  render();
+};
 
 refresh();
 setInterval(refresh, 4000);

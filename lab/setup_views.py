@@ -147,6 +147,72 @@ def api_setup_pairing(request):
     return JsonResponse({"pairing_left": pairing.seconds_left()})
 
 
+@login_required
+@require_GET
+def api_setup_lock_features(request):
+    """إرجاع ميزات القفل المكتشفة والمفعلة."""
+    discovered = veyon.discover_lock_features()
+    effective = veyon.get_effective_lock_features()
+    return JsonResponse(
+        {
+            "discovered": discovered,
+            "effective": effective,
+            "configured": [f.strip() for f in settings.VEYON_LOCK_FEATURES if f.strip()],
+            "simulate": settings.LAB_SIMULATE,
+        }
+    )
+
+
+@login_required
+@require_POST
+def api_setup_lock_features(request):
+    """تحديث ميزات القفل المفعلة (تُخزن في الجلسة، للتطبيق الدائم عدّل متغير البيئة)."""
+    body = _json_body(request)
+    features = body.get("features", [])
+    if not isinstance(features, list):
+        return JsonResponse({"error": "تنسيق الميزات غير صالح"}, status=400)
+    cleaned = [str(f).strip() for f in features if str(f).strip()]
+    request.session["veyon_lock_features"] = cleaned
+    return JsonResponse({"ok": True, "effective": cleaned})
+
+
+@login_required
+@require_POST
+def api_setup_test_lock(request):
+    """اختبار الحظر على جهاز واحد."""
+    body = _json_body(request)
+    try:
+        number = int(body.get("number"))
+    except (TypeError, ValueError):
+        return JsonResponse({"error": "رقم الجهاز غير صالح"}, status=400)
+    device = Device.objects.filter(number=number).first()
+    if device is None:
+        return JsonResponse({"error": "الجهاز غير موجود"}, status=404)
+    if not device.ip_address:
+        return JsonResponse({"error": "الجهاز ليس له عنوان IP"}, status=400)
+
+    action = body.get("action", "lock")
+    if action not in ("lock", "unlock"):
+        return JsonResponse({"error": "الإجراء يجب أن يكون lock أو unlock"}, status=400)
+
+    lock = action == "lock"
+    ok, error = veyon.set_lock(device, lock)
+    if ok:
+        device.is_blocked = lock
+        device.save(update_fields=["is_blocked"])
+        return JsonResponse({"ok": True, "message": f"تم {'الحظر' if lock else 'الفتح'} بنجاح"})
+    return JsonResponse({"ok": False, "error": error}, status=400)
+
+
+@login_required
+@require_POST
+def api_setup_refresh_lock_states(request):
+    """مزامنة حالة القفل لكل الأجهزة مع الواقع."""
+    devices = list(Device.objects.all())
+    count = veyon.sync_lock_states(devices)
+    return JsonResponse({"ok": True, "synced": count})
+
+
 # ---------------------------------------------------------------- الطالب
 
 

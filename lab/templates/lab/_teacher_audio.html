@@ -2,8 +2,10 @@
 // ---- الصوت الحي: المعلم هو من يبدأ الاتصال بكل طالب فتح صفحة الطالب ----
 (function () {
   const $ = id => document.getElementById(id);
-  const peers = new Map();   // رقم الجهاز -> { pc, sender, audio }
+  const peers = new Map();   // رقم الجهاز -> { pc, sender, audio, qualityTimer }
   let ws = null, micStream = null, micTrack = null;
+  let wsReconnectDelay = 2000;
+  const WS_RECONNECT_MAX = 30000;
 
   const say = text => { msg.textContent = text || ''; };
   const send = obj => { if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj)); };
@@ -35,6 +37,43 @@
     });
   }
 
+  // ---------------- جودة الاتصال
+  function parseQuality(stats) {
+    // يرجع {rtt, loss} من نتائج getStats
+    let rtt = null, loss = null;
+    stats.forEach(report => {
+      if (report.type === 'candidate-pair' && report.state === 'succeeded' && report.currentRoundTripTime != null) {
+        rtt = Math.round(report.currentRoundTripTime * 1000);
+      }
+      if (report.type === 'inbound-rtp' && report.kind === 'audio') {
+        const total = (report.packetsReceived || 0) + (report.packetsLost || 0);
+        if (total > 0) loss = Math.round(((report.packetsLost || 0) / total) * 100);
+      }
+    });
+    return { rtt: rtt == null ? 999 : rtt, loss: loss == null ? 100 : loss };
+  }
+
+  function startQualityMonitor(n, pc) {
+    stopQualityMonitor(n);
+    const timer = setInterval(async () => {
+      try {
+        const stats = await pc.getStats();
+        const q = parseQuality(stats);
+        if (window.__labSetQuality) window.__labSetQuality(n, q);
+      } catch (e) {}
+    }, 3000);
+    const p = peers.get(n);
+    if (p) p.qualityTimer = timer;
+  }
+  function stopQualityMonitor(n) {
+    const p = peers.get(n);
+    if (p && p.qualityTimer) {
+      clearInterval(p.qualityTimer);
+      p.qualityTimer = null;
+    }
+    if (window.__labClearQuality) window.__labClearQuality(n);
+  }
+
   // من يُرسَل إليه صوت المعلم، ومن يُسمَع صوته
   function route(n) {
     const p = peers.get(n);
@@ -48,6 +87,7 @@
   function closePeer(n) {
     const p = peers.get(n);
     if (!p) return;
+    stopQualityMonitor(n);
     peers.delete(n);
     try { p.pc.close(); } catch (e) {}
     p.audio.srcObject = null;
@@ -65,7 +105,14 @@
       audio.srcObject = e.streams[0] || new MediaStream([e.track]);
       audio.play().catch(() => {});
     };
-    const peer = { pc, sender: tr.sender, audio };
+    pc.onconnectionstatechange = () => {
+      const s = pc.connectionState;
+      if (s === 'failed' || s === 'disconnected') {
+        // إعادة اتصال تلقائية عند انقطاع الشبكة
+        setTimeout(() => { if (audioInfo.on && audioInfo.ready.has(n)) openPeer(n); }, 2000);
+      }
+    };
+    const peer = { pc, sender: tr.sender, audio, qualityTimer: null };
     peers.set(n, peer);
     route(n);
     try {
@@ -74,6 +121,7 @@
       if (peers.get(n) !== peer) return;
       send({ type: 'signal', to: n, data: { sdp: pc.localDescription } });
       if (audioInfo.listen === n) send({ type: 'cmd', to: [n], cmd: 'mic_on' });
+      startQualityMonitor(n, pc);
     } catch (e) {}
   }
 
@@ -154,6 +202,7 @@
 
   function connectWS() {
     ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws/teacher/');
+    wsReconnectDelay = 2000;
     ws.onmessage = ev => {
       const m = JSON.parse(ev.data);
       if (m.type === 'presence_list') {
@@ -166,6 +215,9 @@
         updateUi();
       } else if (m.type === 'signal') {
         onSignal(m.from, m.data);
+      } else if (m.type === 'quality') {
+        // تقارير جودة من الطالب
+        if (window.__labSetQuality) window.__labSetQuality(m.from, m.data);
       }
     };
     ws.onclose = ev => {
@@ -174,9 +226,14 @@
       updateUi();
       if (ev.code === 4409) { say('اللوحة مفتوحة في نافذة أخرى. أغلقها أو أعد تحميل هذه الصفحة.'); return; }
       if (ev.code === 4403) { say('تعذر فتح قناة الصوت: سجّل الدخول وافتح اللوحة من جهاز المعلم.'); return; }
-      setTimeout(connectWS, 2000);
+      // إعادة اتصال تلقائية مع تأخير متزايد
+      setTimeout(connectWS, wsReconnectDelay);
+      wsReconnectDelay = Math.min(wsReconnectDelay * 1.5, WS_RECONNECT_MAX);
     };
   }
+
+  // دالة لإيقاف الصوت عند إنهاء الحصة
+  window.__labAudioOff = powerOff;
 
   updateUi();
   connectWS();

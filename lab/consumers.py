@@ -127,6 +127,10 @@ class StudentConsumer(AsyncJsonWebsocketConsumer):
             await self._tell_teacher(
                 {"type": "signal", "from": self.number, "data": content.get("data")}
             )
+        elif self.number is not None and content.get("type") == "quality":
+            await self._tell_teacher(
+                {"type": "quality", "from": self.number, "data": content.get("data")}
+            )
 
     async def _tell_teacher(self, payload):
         await self.channel_layer.group_send(TEACHER_GROUP, {"type": "teacher_event", "payload": payload})

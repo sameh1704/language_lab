@@ -98,3 +98,47 @@ VEYON_LOCK_FEATURES = [
 ]
 # مهلة فحص الاتصال بالجهاز بالثواني
 LAB_CHECK_TIMEOUT = float(os.environ.get("LAB_CHECK_TIMEOUT", "0.8"))
+
+# ---------------------------------------------------------------------------
+# السجلات (ملف أخطاء في مجلد المشروع)
+# ---------------------------------------------------------------------------
+LOGS_DIR = BASE_DIR / "logs"
+LOGS_DIR.mkdir(exist_ok=True)
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "verbose": {
+            "format": "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        },
+    },
+    "handlers": {
+        "file": {
+            "level": "WARNING",
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": str(LOGS_DIR / "lab_errors.log"),
+            "maxBytes": 1024 * 1024 * 5,
+            "backupCount": 5,
+            "formatter": "verbose",
+            "encoding": "utf-8",
+        },
+        "console": {
+            "level": "INFO",
+            "class": "logging.StreamHandler",
+            "formatter": "verbose",
+        },
+    },
+    "loggers": {
+        "lab": {
+            "handlers": ["file", "console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "lab.veyon": {
+            "handlers": ["file", "console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+    },
+}

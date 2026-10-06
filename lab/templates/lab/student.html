@@ -101,7 +101,38 @@ function waitIce(p) {
 
 function closePc() {
   if (pc) { try { pc.close(); } catch (e) {} }
+  if (qualityTimer) { clearInterval(qualityTimer); qualityTimer = null; }
   pc = null; sender = null;
+}
+
+// ---------------- جودة الاتصال
+let qualityTimer = null;
+function parseQuality(stats) {
+  let rtt = null, loss = null;
+  stats.forEach(report => {
+    if (report.type === 'candidate-pair' && report.state === 'succeeded' && report.currentRoundTripTime != null) {
+      rtt = Math.round(report.currentRoundTripTime * 1000);
+    }
+    if (report.type === 'inbound-rtp' && report.kind === 'audio') {
+      const total = (report.packetsReceived || 0) + (report.packetsLost || 0);
+      if (total > 0) loss = Math.round(((report.packetsLost || 0) / total) * 100);
+    }
+  });
+  return { rtt: rtt == null ? 999 : rtt, loss: loss == null ? 100 : loss };
+}
+function startQualityMonitor() {
+  stopQualityMonitor();
+  qualityTimer = setInterval(async () => {
+    if (!pc) return;
+    try {
+      const stats = await pc.getStats();
+      const q = parseQuality(stats);
+      ws.send(JSON.stringify({ type: 'quality', data: q }));
+    } catch (e) {}
+  }, 3000);
+}
+function stopQualityMonitor() {
+  if (qualityTimer) { clearInterval(qualityTimer); qualityTimer = null; }
 }
 
 async function onOffer(data) {
@@ -118,6 +149,10 @@ async function onOffer(data) {
     chip('chip-audio',
       s === 'connected' ? 'الصوت: متصل' : s === 'failed' ? 'الصوت: فشل الربط' : 'الصوت: جارٍ الربط',
       s === 'connected' ? true : s === 'failed' ? false : null);
+    if (s === 'failed' || s === 'disconnected') {
+      // إعادة اتصال تلقائية عند انقطاع الشبكة
+      setTimeout(() => { if (ws && ws.readyState === WebSocket.OPEN) connect(); }, 2000);
+    }
   };
   await p.setRemoteDescription(data.sdp);
   const tr = p.getTransceivers().find(t => t.receiver.track.kind === 'audio');
@@ -127,6 +162,7 @@ async function onOffer(data) {
   await waitIce(p);
   ws.send(JSON.stringify({ type: 'signal', data: { sdp: p.localDescription } }));
   applyMic();
+  startQualityMonitor();
 }
 
 function connect() {

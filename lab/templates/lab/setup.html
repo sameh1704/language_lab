@@ -102,7 +102,27 @@
   </section>
 
   <section class="card">
-    <h2>② ربط أجهزة الطلاب</h2>
+    <h2>② إعدادات Veyon والحظر</h2>
+    <p class="sub">اكتشاف ميزات القفل المتاحة في Veyon واختبار الحظر على جهاز واحد. التغيير هنا مؤقت (للجلسة)؛ للتطبيق الدائم عدّل متغير البيئة <code>VEYON_LOCK_FEATURES</code>.</p>
+    <div class="row">
+      <button id="lf-discover">اكتشاف ميزات القفل</button>
+      <span id="lf-status" style="font-size:14px;color:#374151"></span>
+    </div>
+    <div class="row" id="lf-list"></div>
+    <div class="row">
+      <label>اختبار الحظر على جهاز: <select id="test-num"></select></label>
+      <button class="danger" id="test-lock">حظر</button>
+      <button class="ok" id="test-unlock">فتح</button>
+      <span id="test-result" style="font-size:14px"></span>
+    </div>
+    <div class="row">
+      <button id="sync-locks">مزامنة حالة الحظر مع الواقع</button>
+      <span id="sync-result" style="font-size:14px;color:#374151"></span>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>③ ربط أجهزة الطلاب</h2>
     <p class="sub">كل صف يوضح هل وصل المعلم إلى الجهاز عبر القناتين، وما المطلوب إن لم يصل. عدّل العنوان بكتابته مباشرة في الخانة.</p>
 
     <div class="row">
@@ -135,7 +155,7 @@
   </section>
 
   <section class="card">
-    <h2>③ أوامر وإعدادات جاهزة للنسخ</h2>
+    <h2>④ أوامر وإعدادات جاهزة للنسخ</h2>
     <p class="sub">تُبنى تلقائيًا من عنوان جهاز المعلم المختار.</p>
     <div class="row">
       <label>عنوان جهاز المعلم: <select id="ipsel"></select></label>
@@ -332,6 +352,88 @@ function syncIps(s) {
   if (!prefix.value && ips[0]) prefix.value = ips[0].split('.').slice(0, 3).join('.') + '.';
 }
 
+// ---------------- إعدادات Veyon والحظر
+let lockFeatures = { discovered: [], effective: [], configured: [] };
+
+function renderLockFeatures() {
+  const box = $('lf-list');
+  box.textContent = '';
+  if (!lockFeatures.discovered.length) {
+    $('lf-status').textContent = 'اضغط "اكتشاف" لجلب الميزات من Veyon.';
+    return;
+  }
+  const wrap = document.createElement('div');
+  wrap.style.display = 'flex';
+  wrap.style.flexWrap = 'wrap';
+  wrap.style.gap = '8px';
+  lockFeatures.discovered.forEach(f => {
+    const label = document.createElement('label');
+    label.style.cssText = 'display:inline-flex;align-items:center;gap:6px;background:#f8fafc;border:1px solid #e5e7eb;padding:4px 10px;border-radius:8px;font-size:13px;';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.value = f;
+    cb.checked = lockFeatures.effective.includes(f);
+    cb.addEventListener('change', async () => {
+      const checked = [...box.querySelectorAll('input[type=checkbox]:checked')].map(c => c.value);
+      const res = await post('/api/setup/lock-features/', { features: checked });
+      if (res.ok) {
+        lockFeatures.effective = checked;
+        $('lf-status').textContent = 'تم حفظ الميزات المفعلة لهذه الجلسة.';
+      } else {
+        $('lf-status').textContent = 'تعذر الحفظ: ' + (res.data.error || '');
+      }
+    });
+    label.append(cb, document.createTextNode(f));
+    wrap.append(label);
+  });
+  box.append(wrap);
+  $('lf-status').textContent = `المكتشفة: ${lockFeatures.discovered.length} — المفعلة: ${lockFeatures.effective.length}`;
+}
+
+function fillTestNumbers(devices) {
+  const sel = $('test-num');
+  const current = sel.value;
+  sel.textContent = '';
+  devices.forEach(d => {
+    const o = document.createElement('option');
+    o.value = d.number;
+    o.textContent = `جهاز ${d.number}${d.ip ? ' (' + d.ip + ')' : ''}`;
+    sel.append(o);
+  });
+  if (current && [...sel.options].some(o => o.value === current)) sel.value = current;
+}
+
+$('lf-discover').addEventListener('click', async () => {
+  $('lf-status').textContent = 'جارٍ الاكتشاف...';
+  const res = await fetch('/api/setup/lock-features/');
+  const data = await res.json();
+  lockFeatures = data;
+  renderLockFeatures();
+});
+
+async function testLock(action) {
+  const num = $('test-num').value;
+  if (!num) { $('test-result').textContent = 'اختر جهازًا أولاً.'; return; }
+  $('test-result').textContent = 'جارٍ التنفيذ...';
+  const res = await post('/api/setup/test-lock/', { number: Number(num), action });
+  $('test-result').textContent = res.ok
+    ? (res.data.message || 'تم بنجاح')
+    : ('فشل: ' + (res.data.error || 'خطأ غير معروف'));
+  $('test-result').style.color = res.ok ? '#15803d' : '#b91c1c';
+  poll();
+}
+$('test-lock').addEventListener('click', () => testLock('lock'));
+$('test-unlock').addEventListener('click', () => testLock('unlock'));
+
+$('sync-locks').addEventListener('click', async () => {
+  $('sync-result').textContent = 'جارٍ المزامنة...';
+  const res = await post('/api/setup/refresh-lock-states/', {});
+  $('sync-result').textContent = res.ok
+    ? `تمت مزامنة ${res.data.synced} جهاز`
+    : 'تعذرت المزامنة';
+  poll();
+});
+
 // ---------------- التحديث الدوري
 async function poll() {
   try {
@@ -343,9 +445,16 @@ async function poll() {
     syncIps(s);
     renderChecks(s);
     renderRows(s);
+    fillTestNumbers(s.devices);
     if (Math.abs(pairLeft - s.pairing_left) > 2 || (pairLeft === 0) !== (s.pairing_left === 0)) pairLeft = s.pairing_left;
     renderPair();
-    if (firstLoad) renderCmds();
+    if (firstLoad) {
+      renderCmds();
+      // اكتشاف تلقائي للميزات عند أول تحميل
+      const lf = await fetch('/api/setup/lock-features/');
+      lockFeatures = await lf.json();
+      renderLockFeatures();
+    }
   } catch (e) {}
 }
 poll();
