@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>إعداد الاتصال</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: "Segoe UI", Tahoma, Arial, sans-serif; background: #f3f4f6; margin: 0; color: #111827; }
+  header { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;
+           padding: 12px 20px; background: #fff; border-bottom: 1px solid #e5e7eb; }
+  header h1 { font-size: 20px; margin: 0; }
+  a { color: #2563eb; text-decoration: none; }
+  .sim { background: #fef3c7; color: #92400e; padding: 8px 20px; font-size: 14px; text-align: center; }
+  main { max-width: 1100px; margin: 0 auto; padding: 16px 20px 40px; display: grid; gap: 16px; }
+  .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 14px; padding: 18px 20px; }
+  .card h2 { font-size: 18px; margin: 0 0 6px; }
+  .card p.sub { color: #4b5563; margin: 0 0 14px; font-size: 14px; line-height: 1.8; }
+  button { font: inherit; font-size: 14px; padding: 8px 14px; border-radius: 8px; cursor: pointer;
+           border: 1px solid #d1d5db; background: #fff; }
+  button:hover { background: #f9fafb; }
+  button.primary { background: #2563eb; border-color: #2563eb; color: #fff; }
+  button.primary:hover { background: #1d4ed8; }
+  input, select { font: inherit; font-size: 14px; padding: 7px 10px; border: 1px solid #d1d5db; border-radius: 8px; }
+  .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 8px 0; }
+
+  /* مخطط الاتصال */
+  .diagram { display: grid; grid-template-columns: 1fr 1.3fr 1fr; gap: 12px; align-items: stretch; }
+  .node { border: 2px solid #94a3b8; border-radius: 12px; padding: 12px 14px; background: #f8fafc; }
+  .node b { display: block; margin-bottom: 6px; }
+  .node ul { margin: 0; padding-inline-start: 18px; font-size: 13px; line-height: 1.9; color: #374151; }
+  .links { display: flex; flex-direction: column; justify-content: center; gap: 12px; }
+  .lk { border-radius: 10px; padding: 8px 10px; font-size: 13px; line-height: 1.7; text-align: center; }
+  .lk.a { background: #fee2e2; border: 1px solid #fca5a5; }
+  .lk.b { background: #dcfce7; border: 1px solid #86efac; }
+  @media (max-width: 800px) { .diagram { grid-template-columns: 1fr; } }
+
+  /* الفحوصات */
+  .checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  .checks li { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; line-height: 1.7; }
+  .ic { flex: none; width: 22px; height: 22px; border-radius: 50%; color: #fff; font-size: 13px;
+        display: inline-flex; align-items: center; justify-content: center; margin-top: 2px; }
+  .ic.ok { background: #16a34a; } .ic.bad { background: #dc2626; } .ic.warn { background: #d97706; }
+  .ic.na { background: #9ca3af; }
+  code, pre { direction: ltr; unicode-bidi: embed; font-family: Consolas, monospace; }
+  code { background: #f1f5f9; padding: 1px 6px; border-radius: 5px; }
+
+  /* الجدول */
+  .summary { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; font-size: 14px; }
+  .pill { background: #f1f5f9; border-radius: 999px; padding: 3px 12px; }
+  .pill.ok { background: #dcfce7; } .pill.bad { background: #fee2e2; }
+  .tbl { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: start; padding: 6px 10px; border-bottom: 1px solid #f1f5f9; white-space: nowrap; }
+  th { background: #f8fafc; position: sticky; top: 0; }
+  td.num { font-weight: 700; width: 60px; }
+  td.h { white-space: normal; color: #4b5563; min-width: 260px; }
+  td input { width: 150px; direction: ltr; }
+  td.st.yes { color: #15803d; } td.st.no { color: #b91c1c; }
+  tr.ready { background: #f0fdf4; }
+  #flash { min-height: 22px; font-size: 14px; margin: 6px 0; }
+
+  /* الأوامر */
+  .cmd { margin: 12px 0; }
+  .cmd .t { font-weight: 600; font-size: 14px; }
+  .cmd .w { color: #6b7280; font-size: 13px; margin: 2px 0 6px; }
+  pre { background: #0f172a; color: #e2e8f0; padding: 10px 12px; border-radius: 8px; margin: 0;
+        white-space: pre-wrap; word-break: break-all; font-size: 13px; }
+  .cmd button { margin-top: 6px; }
+  ol.steps { margin: 6px 0 12px; padding-inline-start: 20px; line-height: 2; font-size: 14px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>إعداد الاتصال بين جهاز المعلم وأجهزة الطلاب</h1>
+  <a href="{% url 'dashboard' %}">&rarr; العودة للوحة المعمل</a>
+</header>
+{% if simulate %}<div class="sim">وضع تجريبي (LAB_SIMULATE): فحص Veyon وهمي، أما صفحة الطالب فتظهر فقط إذا فُتحت فعليًا.</div>{% endif %}
+
+<main>
+  <section class="card">
+    <h2>كيف يتصل النظام؟</h2>
+    <p class="sub">هناك قناتان بين جهاز المعلم وكل جهاز طالب، ولا يعمل النظام كاملًا إلا بوجود الاثنتين. ويُعرَّف كل جهاز طالب بعنوان IP الخاص به، فكل رقم (1 إلى 40) مرتبط بعنوان واحد.</p>
+    <div class="diagram">
+      <div class="node"><b>جهاز المعلم</b>
+        <ul><li>لوحة Django (من localhost)</li><li>Veyon: <code>veyon-cli</code> للحظر والفتح</li><li>خادم الصوت على المنفذ <span class="port"></span></li></ul>
+      </div>
+      <div class="links">
+        <div class="lk a"><b>① التحكم والحظر</b><br>Veyon عبر المنفذ <b>11100</b> &larr;<br>المعلم يرسل الأوامر للطالب</div>
+        <div class="lk b"><b>② الصوت والتحدث</b><br>WebSocket + WebRTC عبر المنفذ <b class="port"></b> &harr;<br>تعمل ما دامت صفحة الطالب مفتوحة</div>
+      </div>
+      <div class="node"><b>جهاز الطالب</b>
+        <ul><li>خدمة Veyon تعمل في الخلفية</li><li>صفحة الطالب مفتوحة في Chrome أو Edge</li><li>سماعة رأس بميكروفون</li></ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>① جهاز المعلم</h2>
+    <p class="sub">فحص تلقائي لهذا الجهاز، وتحديث كل ثلاث ثوانٍ.</p>
+    <ul class="checks" id="checks"><li>جارٍ الفحص...</li></ul>
+  </section>
+
+  <section class="card">
+    <h2>② ربط أجهزة الطلاب</h2>
+    <p class="sub">كل صف يوضح هل وصل المعلم إلى الجهاز عبر القناتين، وما المطلوب إن لم يصل. عدّل العنوان بكتابته مباشرة في الخانة.</p>
+
+    <div class="row">
+      <b>الطريقة السريعة: وضع الربط</b>
+      <button class="primary" id="pair-btn">تفعيل وضع الربط (10 دقائق)</button>
+      <span id="pair-state"></span>
+    </div>
+    <ol class="steps">
+      <li>فعّل وضع الربط من الزر أعلاه.</li>
+      <li>على كل جهاز طالب افتح صفحة الطالب: <code class="student-url">http://IP:PORT/student/</code></li>
+      <li>اختر رقم الجهاز المكتوب عليه، فيُسجَّل عنوانه تلقائيًا ويظهر هنا في الجدول.</li>
+      <li>أوقف وضع الربط بعد الانتهاء، لأن أي جهاز يستطيع تسجيل نفسه ما دام مفعّلًا.</li>
+    </ol>
+
+    <div class="row">
+      <b>أو تعبئة العناوين دفعة واحدة:</b>
+      <input id="fill-prefix" size="14" dir="ltr" placeholder="192.168.1.">
+      <input id="fill-start" type="number" min="1" max="254" style="width:90px" value="101" dir="ltr">
+      <button id="fill-btn">تعبئة (الجهاز 1 يأخذ هذا الرقم والباقي بالتتابع)</button>
+    </div>
+
+    <div id="flash"></div>
+    <div class="summary" id="summary"></div>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>الجهاز</th><th>عنوان IP</th><th>① Veyon (التحكم)</th><th>② صفحة الطالب (الصوت)</th><th>الحالة وما المطلوب</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>③ أوامر وإعدادات جاهزة للنسخ</h2>
+    <p class="sub">تُبنى تلقائيًا من عنوان جهاز المعلم المختار.</p>
+    <div class="row">
+      <label>عنوان جهاز المعلم: <select id="ipsel"></select></label>
+      <label>متصفح الطلاب: <select id="browser"><option value="chrome">Chrome</option><option value="edge">Edge</option></select></label>
+    </div>
+    <div id="cmds"></div>
+  </section>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const PORT = location.port || '80';
+document.querySelectorAll('.port').forEach(e => { e.textContent = PORT; });
+
+const rowEls = {};
+let status = null;
+let pairLeft = 0;
+
+function csrf() {
+  const m = document.cookie.match(/(?:^|; )csrftoken=([^;]+)/);
+  return m ? decodeURIComponent(m[1]) : '';
+}
+async function post(url, body) {
+  const r = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
+    body: JSON.stringify(body),
+  });
+  let data = {};
+  try { data = await r.json(); } catch (e) {}
+  return { ok: r.ok, data };
+}
+function flash(text, ok) {
+  const f = $('flash');
+  f.textContent = text;
+  f.style.color = ok ? '#15803d' : '#b91c1c';
+}
+
+// ---------------- فحوصات جهاز المعلم
+function renderChecks(s) {
+  const t = s.teacher;
+  const missing = s.devices.filter(d => !d.ip).length;
+  const items = [];
+  items.push(t.lan_ips.length
+    ? ['ok', 'عنوان جهاز المعلم على الشبكة: ' + t.lan_ips.join('، '), '']
+    : ['bad', 'لم يُعثر على عنوان شبكة لجهاز المعلم', 'تأكد أن الجهاز موصول بشبكة المعمل.']);
+  items.push(t.secure_origin
+    ? ['ok', 'اللوحة مفتوحة من localhost، فالميكروفون متاح', '']
+    : ['bad', 'اللوحة مفتوحة من عنوان الشبكة، والمتصفح سيمنع الميكروفون', 'افتحها من http://localhost:' + PORT]);
+  if (t.veyon_cli === null) items.push(['na', 'Veyon: الوضع التجريبي مفعّل', 'اضبط LAB_SIMULATE=0 للتشغيل الفعلي.']);
+  else items.push(t.veyon_cli
+    ? ['ok', 'veyon-cli موجود على جهاز المعلم', t.veyon_cli_path]
+    : ['bad', 'veyon-cli غير موجود', 'ثبّت Veyon أو صحّح المسار في VEYON_CLI (الحالي: ' + t.veyon_cli_path + ')']);
+  items.push(missing
+    ? ['warn', missing + ' جهاز بدون عنوان IP', 'استخدم وضع الربط أو التعبئة الجماعية أدناه.']
+    : ['ok', 'لكل الأجهزة عنوان IP', '']);
+  const ready = s.devices.filter(d => d.state === 'ready').length;
+  items.push([ready === s.devices.length ? 'ok' : 'warn', 'الأجهزة الجاهزة: ' + ready + ' من ' + s.devices.length, '']);
+
+  const ul = $('checks');
+  ul.textContent = '';
+  items.forEach(([kind, title, detail]) => {
+    const li = document.createElement('li');
+    const ic = document.createElement('span');
+    ic.className = 'ic ' + kind;
+    ic.textContent = kind === 'ok' ? '✓' : kind === 'bad' ? '✕' : kind === 'warn' ? '!' : '–';
+    const box = document.createElement('div');
+    box.textContent = title + (detail ? ' — ' + detail : '');
+    li.append(ic, box);
+    ul.append(li);
+  });
+}
+
+// ---------------- جدول الأجهزة
+function buildRow(d) {
+  const tr = document.createElement('tr');
+  const mk = cls => { const td = document.createElement('td'); if (cls) td.className = cls; tr.append(td); return td; };
+  mk('num').textContent = d.number;
+  const input = document.createElement('input');
+  input.type = 'text'; input.placeholder = '192.168.1.x'; input.dir = 'ltr';
+  input.addEventListener('change', async () => {
+    const res = await post('/api/setup/ip/', { number: d.number, ip: input.value.trim() });
+    flash(res.ok ? 'تم حفظ عنوان الجهاز ' + d.number : (res.data.error || 'تعذر الحفظ'), res.ok);
+    poll();
+  });
+  mk().append(input);
+  rowEls[d.number] = { tr, input, v: mk('st'), p: mk('st'), h: mk('h') };
+  $('rows').append(tr);
+}
+function paint(td, ok, yes, no) { td.textContent = ok ? yes : no; td.className = 'st ' + (ok ? 'yes' : 'no'); }
+
+function renderRows(s) {
+  s.devices.forEach(d => {
+    if (!rowEls[d.number]) buildRow(d);
+    const r = rowEls[d.number];
+    if (document.activeElement !== r.input) r.input.value = d.ip;
+    paint(r.v, d.veyon, 'يستجيب', 'لا يستجيب');
+    paint(r.p, d.page, 'مفتوحة', 'غير مفتوحة');
+    r.h.textContent = d.hint;
+    r.tr.className = d.state === 'ready' ? 'ready' : '';
+  });
+  const count = st => s.devices.filter(d => d.state === st).length;
+  const sum = $('summary');
+  sum.textContent = '';
+  [['ok', 'جاهز', count('ready')], ['bad', 'Veyon لا يستجيب', count('veyon_down') + count('page_only')],
+   ['', 'صفحة الطالب غير مفتوحة', count('page_missing')], ['', 'بدون IP', count('no_ip')]].forEach(([cls, label, n]) => {
+    const p = document.createElement('span');
+    p.className = 'pill ' + cls;
+    p.textContent = label + ': ' + n;
+    sum.append(p);
+  });
+}
+
+// ---------------- وضع الربط
+function renderPair() {
+  const on = pairLeft > 0;
+  $('pair-btn').textContent = on ? 'إيقاف وضع الربط' : 'تفعيل وضع الربط (10 دقائق)';
+  $('pair-btn').className = on ? '' : 'primary';
+  const mm = String(Math.floor(pairLeft / 60)).padStart(2, '0');
+  const ss = String(pairLeft % 60).padStart(2, '0');
+  $('pair-state').textContent = on ? 'مفعّل — المتبقي ' + mm + ':' + ss : 'متوقف';
+  $('pair-state').style.color = on ? '#15803d' : '#6b7280';
+}
+$('pair-btn').addEventListener('click', async () => {
+  const res = await post('/api/setup/pairing/', { on: pairLeft === 0 });
+  pairLeft = res.data.pairing_left || 0;
+  renderPair();
+});
+setInterval(() => { if (pairLeft > 0) { pairLeft--; renderPair(); } }, 1000);
+
+$('fill-btn').addEventListener('click', async () => {
+  if (!confirm('سيتم استبدال عناوين كل الأجهزة. متابعة؟')) return;
+  const res = await post('/api/setup/fill/', { prefix: $('fill-prefix').value.trim(), start: Number($('fill-start').value) });
+  flash(res.ok ? 'تمت تعبئة العناوين' : (res.data.error || 'تعذر التنفيذ'), res.ok);
+  poll();
+});
+
+// ---------------- الأوامر الجاهزة
+function renderCmds() {
+  const ip = $('ipsel').value || 'عنوان_المعلم';
+  const first = status && status.devices.find(d => d.ip);
+  const sample = first ? first.ip : '192.168.1.101';
+  const vport = status ? status.teacher.veyon_port : 11100;
+  const exe = $('browser').value === 'edge'
+    ? '"C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe"'
+    : '"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"';
+  const base = 'http://' + ip + ':' + PORT;
+  document.querySelectorAll('.student-url').forEach(e => { e.textContent = base + '/student/'; });
+
+  const cmds = [
+    ['فتح المنفذ في جدار حماية جهاز المعلم', 'مرة واحدة على جهاز المعلم، في موجّه أوامر بصلاحية المسؤول (Administrator).',
+     'netsh advfirewall firewall add rule name="LanguageLab" dir=in action=allow protocol=TCP localport=' + PORT],
+    ['تشغيل النظام على جهاز المعلم', 'من مجلد المشروع، في كل مرة تريد تشغيل المعمل.',
+     'set LAB_SIMULATE=0\npython manage.py runserver 0.0.0.0:' + PORT + ' --noreload'],
+    ['اختصار صفحة الطالب', 'على سطح مكتب كل جهاز طالب: كليك يمين ← جديد ← اختصار، ثم الصق هذا في خانة الموقع. الخيارات تفتح الصفحة تلقائيًا بالصوت والميكروفون دون أسئلة.',
+     exe + ' --app=' + base + '/student/ --user-data-dir=C:\\LabStudent --autoplay-policy=no-user-gesture-required --use-fake-ui-for-media-stream --disable-features=WebRtcHideLocalIpsWithMdns --unsafely-treat-insecure-origin-as-secure=' + base],
+    ['اختبار وصول جهاز المعلم إلى Veyon عند طالب', 'على جهاز المعلم في PowerShell. النتيجة TcpTestSucceeded : True تعني أن خدمة Veyon تستجيب.',
+     'Test-NetConnection ' + sample + ' -Port ' + vport],
+    ['اختبار وصول جهاز الطالب إلى صفحة الطالب', 'على جهاز الطالب في PowerShell. إن فشل فالمشكلة غالبًا في جدار حماية المعلم أو في العنوان.',
+     'Test-NetConnection ' + ip + ' -Port ' + PORT],
+    ['التأكد من اسم ميزة الحظر في Veyon', 'على جهاز المعلم. يجب أن يطابق اسم قفل الشاشة المتغير VEYON_LOCK_FEATURES (الافتراضي ScreenLock).',
+     'veyon-cli feature list'],
+  ];
+  const box = $('cmds');
+  box.textContent = '';
+  cmds.forEach(([title, where, text]) => {
+    const d = document.createElement('div'); d.className = 'cmd';
+    const t = document.createElement('div'); t.className = 't'; t.textContent = title;
+    const w = document.createElement('div'); w.className = 'w'; w.textContent = where;
+    const pre = document.createElement('pre'); pre.textContent = text;
+    const b = document.createElement('button'); b.textContent = 'نسخ';
+    b.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(text); b.textContent = 'تم النسخ'; }
+      catch (e) { b.textContent = 'حدد النص وانسخه يدويًا'; }
+      setTimeout(() => { b.textContent = 'نسخ'; }, 1500);
+    });
+    d.append(t, w, pre, b);
+    box.append(d);
+  });
+}
+$('ipsel').addEventListener('change', renderCmds);
+$('browser').addEventListener('change', renderCmds);
+
+function syncIps(s) {
+  const sel = $('ipsel');
+  const ips = s.teacher.lan_ips;
+  if ([...sel.options].map(o => o.value).join() !== ips.join()) {
+    const keep = sel.value;
+    sel.textContent = '';
+    ips.forEach(ip => { const o = document.createElement('option'); o.value = ip; o.textContent = ip; sel.append(o); });
+    if (ips.includes(keep)) sel.value = keep;
+  }
+  const prefix = $('fill-prefix');
+  if (!prefix.value && ips[0]) prefix.value = ips[0].split('.').slice(0, 3).join('.') + '.';
+}
+
+// ---------------- التحديث الدوري
+async function poll() {
+  try {
+    const r = await fetch('/api/setup/status/');
+    if (!r.ok || r.redirected) { location.reload(); return; }
+    const s = await r.json();
+    const firstLoad = status === null;
+    status = s;
+    syncIps(s);
+    renderChecks(s);
+    renderRows(s);
+    if (Math.abs(pairLeft - s.pairing_left) > 2 || (pairLeft === 0) !== (s.pairing_left === 0)) pairLeft = s.pairing_left;
+    renderPair();
+    if (firstLoad) renderCmds();
+  } catch (e) {}
+}
+poll();
+setInterval(poll, 3000);
+</script>
+</body>
+</html>

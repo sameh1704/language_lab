@@ -1,0 +1,7 @@
+.venv/
+.kilo/
+db.sqlite3
+.env
+.env.*
+__pycache__/
+*.py[cod]

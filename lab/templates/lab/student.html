@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>صفحة الطالب</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: "Segoe UI", Tahoma, Arial, sans-serif; background: #0f172a; color: #e2e8f0; margin: 0;
+         min-height: 100vh; display: flex; align-items: center; justify-content: center; text-align: center; }
+  main { padding: 24px; max-width: 520px; width: 100%; }
+  .label { color: #94a3b8; font-size: 18px; }
+  .num { font-size: 120px; font-weight: 800; line-height: 1.1; color: #22c55e; }
+  .state { font-size: 18px; margin: 8px 0 20px; min-height: 26px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+  .chip { background: #1e293b; border: 1px solid #334155; padding: 6px 12px; border-radius: 999px; font-size: 14px; }
+  .chip.ok { border-color: #16a34a; color: #86efac; }
+  .chip.bad { border-color: #dc2626; color: #fca5a5; }
+  .live { margin-top: 20px; background: #7f1d1d; color: #fecaca; padding: 10px 16px; border-radius: 10px; font-size: 16px; }
+  button, select { font: inherit; font-size: 18px; padding: 10px 18px; border-radius: 10px; border: 0; margin-top: 16px; }
+  button { background: #2563eb; color: #fff; cursor: pointer; }
+  select { background: #1e293b; color: #e2e8f0; border: 1px solid #334155; }
+  h1 { font-size: 26px; }
+  p { color: #cbd5e1; line-height: 1.8; }
+  .err { color: #fca5a5; min-height: 24px; margin-top: 12px; }
+  code { direction: ltr; unicode-bidi: embed; background: #1e293b; padding: 2px 8px; border-radius: 6px; }
+</style>
+</head>
+<body>
+<main>
+{% if device %}
+  <div class="label">رقم جهازك</div>
+  <div class="num">{{ device.number }}</div>
+  <div class="state" id="state">جارٍ الاتصال بجهاز المعلم...</div>
+  <div class="chips">
+    <span class="chip" id="chip-link">الاتصال: ...</span>
+    <span class="chip" id="chip-audio">الصوت: ...</span>
+    <span class="chip" id="chip-mic">الميكروفون: ...</span>
+  </div>
+  <div class="live" id="live" hidden>المعلم يستمع إليك الآن</div>
+  <button id="enable" hidden>اضغط لتفعيل الصوت</button>
+  <audio id="remote" autoplay playsinline></audio>
+{% elif pairing %}
+  <h1>ربط هذا الجهاز</h1>
+  <p>اختر رقم هذا الجهاز كما هو مكتوب عليه، وسيُسجَّل عنوانه تلقائيًا.</p>
+  <select id="num">
+    {% for n in numbers %}<option value="{{ n }}">جهاز {{ n }}</option>{% endfor %}
+  </select>
+  <br>
+  <button id="pair">ربط</button>
+  <div class="err" id="err"></div>
+{% else %}
+  <h1>هذا الجهاز غير مسجل</h1>
+  <p>عنوان الجهاز: <code>{{ ip }}</code><br>اطلب من المعلم تفعيل وضع الربط من صفحة الإعدادات، وستتحدث هذه الصفحة تلقائيًا.</p>
+{% endif %}
+</main>
+
+{% if device %}
+<script>
+const el = id => document.getElementById(id);
+const audioEl = el('remote');
+const WS_URL = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws/student/';
+let ws = null, pc = null, sender = null, micTrack = null, wantMic = false;
+
+function chip(id, text, ok) {
+  const c = el(id);
+  c.textContent = text;
+  c.className = 'chip' + (ok === true ? ' ok' : ok === false ? ' bad' : '');
+}
+
+async function initMic() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    chip('chip-mic', 'الميكروفون: غير متاح (راجع اختصار التشغيل)', false);
+    return;
+  }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+    micTrack = stream.getAudioTracks()[0];
+    chip('chip-mic', 'الميكروفون: جاهز', true);
+  } catch (e) {
+    chip('chip-mic', 'الميكروفون: غير مسموح', false);
+  }
+}
+
+// الميكروفون لا يُرسل شيئًا إلا حين يطلب المعلم الاستماع، ويظهر تنبيه للطالب وقتها
+function applyMic() {
+  const live = wantMic && !!micTrack;
+  if (sender) sender.replaceTrack(live ? micTrack : null).catch(() => {});
+  el('live').hidden = !live;
+}
+
+function waitIce(p) {
+  return new Promise(resolve => {
+    if (p.iceGatheringState === 'complete') return resolve();
+    const check = () => { if (p.iceGatheringState === 'complete') done(); };
+    const done = () => { p.removeEventListener('icegatheringstatechange', check); resolve(); };
+    p.addEventListener('icegatheringstatechange', check);
+    setTimeout(done, 2500);
+  });
+}
+
+function closePc() {
+  if (pc) { try { pc.close(); } catch (e) {} }
+  pc = null; sender = null;
+}
+
+async function onOffer(data) {
+  if (!data || !data.sdp) return;
+  closePc();
+  const p = new RTCPeerConnection({ iceServers: [] });
+  pc = p;
+  p.ontrack = e => {
+    audioEl.srcObject = e.streams[0] || new MediaStream([e.track]);
+    audioEl.play().then(() => { el('enable').hidden = true; }).catch(() => { el('enable').hidden = false; });
+  };
+  p.onconnectionstatechange = () => {
+    const s = p.connectionState;
+    chip('chip-audio',
+      s === 'connected' ? 'الصوت: متصل' : s === 'failed' ? 'الصوت: فشل الربط' : 'الصوت: جارٍ الربط',
+      s === 'connected' ? true : s === 'failed' ? false : null);
+  };
+  await p.setRemoteDescription(data.sdp);
+  const tr = p.getTransceivers().find(t => t.receiver.track.kind === 'audio');
+  tr.direction = 'sendrecv';
+  sender = tr.sender;
+  await p.setLocalDescription(await p.createAnswer());
+  await waitIce(p);
+  ws.send(JSON.stringify({ type: 'signal', data: { sdp: p.localDescription } }));
+  applyMic();
+}
+
+function connect() {
+  ws = new WebSocket(WS_URL);
+  ws.onopen = () => {
+    chip('chip-link', 'الاتصال: متصل بالمعلم', true);
+    el('state').textContent = 'جهازك متصل بجهاز المعلم';
+  };
+  ws.onmessage = async ev => {
+    const m = JSON.parse(ev.data);
+    if (m.type === 'signal') {
+      try { await onOffer(m.data); } catch (e) { chip('chip-audio', 'الصوت: خطأ', false); }
+    } else if (m.type === 'cmd') {
+      wantMic = m.cmd === 'mic_on';
+      applyMic();
+    }
+  };
+  ws.onclose = ev => {
+    closePc();
+    wantMic = false;
+    el('live').hidden = true;
+    chip('chip-audio', 'الصوت: —', null);
+    if (ev.code === 4409) {
+      chip('chip-link', 'الاتصال: صفحة أخرى مفتوحة', false);
+      el('state').textContent = 'هذه الصفحة مفتوحة في نافذة أخرى على نفس الجهاز';
+      return;
+    }
+    if (ev.code === 4404) { setTimeout(() => location.reload(), 5000); return; }
+    chip('chip-link', 'الاتصال: منقطع، تتم إعادة المحاولة', false);
+    el('state').textContent = 'انقطع الاتصال بجهاز المعلم...';
+    setTimeout(connect, 2000);
+  };
+}
+
+el('enable').addEventListener('click', () => {
+  audioEl.play().then(() => { el('enable').hidden = true; }).catch(() => {});
+});
+
+// الميكروفون أولاً: وجود إذن الميكروفون يجعل المتصفح يعرض عنوان IP الحقيقي في الاتصال
+initMic().finally(connect);
+</script>
+{% elif pairing %}
+<script>
+function csrf() {
+  const m = document.cookie.match(/(?:^|; )csrftoken=([^;]+)/);
+  return m ? decodeURIComponent(m[1]) : '';
+}
+document.getElementById('pair').addEventListener('click', async () => {
+  const err = document.getElementById('err');
+  err.textContent = '';
+  const r = await fetch('/student/pair/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
+    body: JSON.stringify({ number: document.getElementById('num').value }),
+  });
+  const data = await r.json().catch(() => ({}));
+  if (r.ok) location.reload(); else err.textContent = data.error || 'تعذر الربط';
+});
+</script>
+{% else %}
+<script>setTimeout(() => location.reload(), 5000);</script>
+{% endif %}
+</body>
+</html>

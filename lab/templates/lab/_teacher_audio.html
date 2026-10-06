@@ -1,0 +1,184 @@
+<script>
+// ---- الصوت الحي: المعلم هو من يبدأ الاتصال بكل طالب فتح صفحة الطالب ----
+(function () {
+  const $ = id => document.getElementById(id);
+  const peers = new Map();   // رقم الجهاز -> { pc, sender, audio }
+  let ws = null, micStream = null, micTrack = null;
+
+  const say = text => { msg.textContent = text || ''; };
+  const send = obj => { if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj)); };
+
+  function updateUi() {
+    $('a-state').textContent = audioInfo.on ? 'الصوت: يعمل' : 'الصوت: متوقف';
+    $('a-power').textContent = audioInfo.on ? 'إيقاف الصوت' : 'تشغيل الصوت';
+    const parts = [];
+    if (audioInfo.on) {
+      if (audioInfo.all) parts.push('البث يصل إلى ' + audioInfo.ready.size + ' جهاز');
+      else if (audioInfo.set.size) {
+        const reach = [...audioInfo.set].filter(n => audioInfo.ready.has(n)).length;
+        parts.push('البث يصل إلى ' + reach + ' من ' + audioInfo.set.size + ' جهاز محدد');
+      }
+      if (audioInfo.listen != null) parts.push('تستمع إلى جهاز ' + audioInfo.listen);
+    }
+    parts.push('صفحة الطالب مفتوحة على ' + audioInfo.ready.size + ' جهاز');
+    $('a-info').textContent = parts.join(' — ');
+    render();
+  }
+
+  function waitIce(pc) {
+    return new Promise(resolve => {
+      if (pc.iceGatheringState === 'complete') return resolve();
+      const check = () => { if (pc.iceGatheringState === 'complete') done(); };
+      const done = () => { pc.removeEventListener('icegatheringstatechange', check); resolve(); };
+      pc.addEventListener('icegatheringstatechange', check);
+      setTimeout(done, 2500);
+    });
+  }
+
+  // من يُرسَل إليه صوت المعلم، ومن يُسمَع صوته
+  function route(n) {
+    const p = peers.get(n);
+    if (!p) return;
+    const sendMic = micTrack && (audioInfo.all || audioInfo.set.has(n));
+    p.sender.replaceTrack(sendMic ? micTrack : null).catch(() => {});
+    p.audio.muted = audioInfo.listen !== n;
+  }
+  const routeAll = () => peers.forEach((_, n) => route(n));
+
+  function closePeer(n) {
+    const p = peers.get(n);
+    if (!p) return;
+    peers.delete(n);
+    try { p.pc.close(); } catch (e) {}
+    p.audio.srcObject = null;
+  }
+
+  async function openPeer(n) {
+    if (!audioInfo.on) return;
+    closePeer(n);
+    const pc = new RTCPeerConnection({ iceServers: [] });
+    const audio = new Audio();
+    audio.autoplay = true;
+    audio.muted = true;
+    const tr = pc.addTransceiver('audio', { direction: 'sendrecv' });
+    pc.ontrack = e => {
+      audio.srcObject = e.streams[0] || new MediaStream([e.track]);
+      audio.play().catch(() => {});
+    };
+    const peer = { pc, sender: tr.sender, audio };
+    peers.set(n, peer);
+    route(n);
+    try {
+      await pc.setLocalDescription(await pc.createOffer());
+      await waitIce(pc);
+      if (peers.get(n) !== peer) return;
+      send({ type: 'signal', to: n, data: { sdp: pc.localDescription } });
+      if (audioInfo.listen === n) send({ type: 'cmd', to: [n], cmd: 'mic_on' });
+    } catch (e) {}
+  }
+
+  async function onSignal(n, data) {
+    const p = peers.get(n);
+    if (!p || !data || !data.sdp) return;
+    try { await p.pc.setRemoteDescription(data.sdp); } catch (e) {}
+  }
+
+  // الميكروفون أولاً ثم الاتصالات: وجود إذن الميكروفون يُظهر عنوان IP الحقيقي بدل اسم mDNS
+  async function powerOn() {
+    if (audioInfo.on) return true;
+    if (!window.RTCPeerConnection) { say('هذا المتصفح لا يدعم WebRTC.'); return false; }
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      say('الميكروفون يعمل فقط عند فتح اللوحة من localhost مثل http://localhost:8000');
+      return false;
+    }
+    try {
+      micStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+    } catch (e) {
+      say('تعذر تشغيل الميكروفون، اسمح للمتصفح باستخدامه ثم أعد المحاولة.');
+      return false;
+    }
+    micTrack = micStream.getAudioTracks()[0];
+    audioInfo.on = true;
+    [...audioInfo.ready].forEach(openPeer);
+    updateUi();
+    return true;
+  }
+
+  function powerOff() {
+    if (audioInfo.listen != null) send({ type: 'cmd', to: [audioInfo.listen], cmd: 'mic_off' });
+    [...peers.keys()].forEach(closePeer);
+    if (micStream) micStream.getTracks().forEach(t => t.stop());
+    micStream = micTrack = null;
+    audioInfo.on = false; audioInfo.all = false; audioInfo.set = new Set(); audioInfo.listen = null;
+    updateUi();
+  }
+
+  async function broadcast(all) {
+    const numbers = [...selected];
+    if (!all && !numbers.length) { say('حدد جهازًا واحدًا على الأقل أولاً.'); return; }
+    if (!(await powerOn())) return;
+    audioInfo.all = all;
+    audioInfo.set = new Set(all ? [] : numbers);
+    routeAll(); updateUi();
+  }
+
+  function setListen(n) {
+    if (audioInfo.listen != null && audioInfo.listen !== n) send({ type: 'cmd', to: [audioInfo.listen], cmd: 'mic_off' });
+    audioInfo.listen = n;
+    if (n != null) send({ type: 'cmd', to: [n], cmd: 'mic_on' });
+    routeAll(); updateUi();
+  }
+
+  function oneSelected() {
+    if (selected.size !== 1) { say('حدد جهازًا واحدًا فقط.'); return null; }
+    const n = [...selected][0];
+    if (!audioInfo.ready.has(n)) { say('هذا الجهاز لم يفتح صفحة الطالب بعد.'); return null; }
+    return n;
+  }
+
+  $('a-power').addEventListener('click', () => (audioInfo.on ? powerOff() : powerOn()));
+  $('a-bcast-sel').addEventListener('click', () => broadcast(false));
+  $('a-bcast-all').addEventListener('click', () => broadcast(true));
+  $('a-bcast-stop').addEventListener('click', () => { audioInfo.all = false; audioInfo.set = new Set(); routeAll(); updateUi(); });
+  $('a-listen').addEventListener('click', async () => {
+    const n = oneSelected(); if (n == null) return;
+    if (await powerOn()) setListen(n);
+  });
+  $('a-talk').addEventListener('click', async () => {
+    const n = oneSelected(); if (n == null) return;
+    if (!(await powerOn())) return;
+    audioInfo.all = false; audioInfo.set = new Set([n]);
+    setListen(n);
+  });
+  $('a-listen-stop').addEventListener('click', () => setListen(null));
+
+  function connectWS() {
+    ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws/teacher/');
+    ws.onmessage = ev => {
+      const m = JSON.parse(ev.data);
+      if (m.type === 'presence_list') {
+        audioInfo.ready = new Set(m.numbers);
+        [...audioInfo.ready].forEach(openPeer);
+        updateUi();
+      } else if (m.type === 'presence') {
+        if (m.online) { audioInfo.ready.add(m.number); openPeer(m.number); }
+        else { audioInfo.ready.delete(m.number); closePeer(m.number); }
+        updateUi();
+      } else if (m.type === 'signal') {
+        onSignal(m.from, m.data);
+      }
+    };
+    ws.onclose = ev => {
+      [...peers.keys()].forEach(closePeer);
+      audioInfo.ready = new Set();
+      updateUi();
+      if (ev.code === 4409) { say('اللوحة مفتوحة في نافذة أخرى. أغلقها أو أعد تحميل هذه الصفحة.'); return; }
+      if (ev.code === 4403) { say('تعذر فتح قناة الصوت: سجّل الدخول وافتح اللوحة من جهاز المعلم.'); return; }
+      setTimeout(connectWS, 2000);
+    };
+  }
+
+  updateUi();
+  connectWS();
+})();
+</script>
