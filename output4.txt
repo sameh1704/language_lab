@@ -1,0 +1,4 @@
+  File "F:\ponix lab\language_lab\debug_test3.py", line 67
+    print(\ About to receive student hello\)&#10;# Student receives hello
+           ^
+SyntaxError: unexpected character after line continuation character

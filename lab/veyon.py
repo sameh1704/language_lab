@@ -1,4 +1,4 @@
-"""التعامل مع أجهزة الطلاب: فحص الاتصال وحظر/فتح الجهاز عبر Veyon."""
+"""Student device handling: connection check, lock/unlock, screen management via Veyon."""
 import logging
 import os
 import shutil
@@ -9,6 +9,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import lru_cache
 
 from django.conf import settings
+from django.utils.translation import gettext as _
 
 logger = logging.getLogger(__name__)
 
@@ -16,10 +17,12 @@ _VEYON_CLI_PATH = None
 _VEYON_CLI_LOCK = threading.Lock()
 _LOCK_FEATURES_CACHE = None
 _LOCK_FEATURES_CACHE_LOCK = threading.Lock()
+_ACTIVE_FEATURES_LOCK = threading.Lock()
+_ACTIVE_FEATURES: dict[tuple[str, str], bool] = {}
 
 
 def _get_veyon_cli_path():
-    """الحصول على مسار veyon-cli مع تخزين مؤقت."""
+    """Get veyon-cli path with caching."""
     global _VEYON_CLI_PATH
     if _VEYON_CLI_PATH is not None:
         return _VEYON_CLI_PATH
@@ -37,17 +40,17 @@ def _get_veyon_cli_path():
 
 
 def cli_available():
-    """هل veyon-cli موجود على جهاز المعلم؟ (None في الوضع التجريبي)"""
+    """Is veyon-cli available on teacher machine? (None in simulation mode)"""
     if settings.LAB_SIMULATE:
         return None
     return bool(_get_veyon_cli_path())
 
 
 def _run_veyon_cli(args, timeout=5):
-    """تشغيل أمر veyon-cli وإرجاع (نجاح, مخرجات_قياسية, مخرجات_خطأ)."""
+    """Run veyon-cli command and return (success, stdout, stderr)."""
     cli = _get_veyon_cli_path()
     if not cli:
-        return False, "", "veyon-cli غير موجود، راجع إعداد VEYON_CLI"
+        return False, "", _("veyon-cli not found, check VEYON_CLI setting")
     cmd = [cli] + args
     try:
         proc = subprocess.run(
@@ -60,25 +63,25 @@ def _run_veyon_cli(args, timeout=5):
         )
         return proc.returncode == 0, proc.stdout, proc.stderr
     except FileNotFoundError:
-        return False, "", "veyon-cli غير موجود، راجع VEYON_CLI"
+        return False, "", _("veyon-cli not found, check VEYON_CLI")
     except subprocess.TimeoutExpired:
-        return False, "", "انتهت المهلة أثناء تنفيذ أمر Veyon"
+        return False, "", _("Veyon command timed out")
     except Exception as e:
-        logger.exception("خطأ غير متوقع في veyon-cli")
-        return False, "", f"خطأ غير متوقع: {e}"
+        logger.exception(_("Unexpected error in veyon-cli"))
+        return False, "", f"{_('Unexpected error')}: {e}"
 
 
 def discover_lock_features(force_refresh=False):
-    """اكتشاف ميزات القفل المتاحة من Veyon. يخزن النتيجة مؤقتًا."""
+    """Discover available lock features from Veyon. Caches result."""
     global _LOCK_FEATURES_CACHE
     if settings.LAB_SIMULATE:
-        return ["ScreenLock (محاكاة)"]
+        return ["ScreenLock"]
     with _LOCK_FEATURES_CACHE_LOCK:
         if _LOCK_FEATURES_CACHE is not None and not force_refresh:
             return _LOCK_FEATURES_CACHE
         ok, stdout, stderr = _run_veyon_cli(["feature", "list"], timeout=10)
         if not ok:
-            logger.warning("فشل اكتشاف ميزات Veyon: %s", stderr)
+            logger.warning(_("Failed to discover Veyon features: %(error)s"), {"error": stderr})
             _LOCK_FEATURES_CACHE = ["ScreenLock"]
             return _LOCK_FEATURES_CACHE
         features = []
@@ -93,22 +96,35 @@ def discover_lock_features(force_refresh=False):
         if not lock_features:
             lock_features = ["ScreenLock"]
         _LOCK_FEATURES_CACHE = lock_features
-        logger.info("ميزات القفل المكتشفة: %s", lock_features)
+        logger.info(_("Discovered lock features: %(features)s"), {"features": lock_features})
         return _LOCK_FEATURES_CACHE
 
 
 def get_effective_lock_features():
-    """الميزات الفعالة للقفل: من الإعدادات إن وُجدت، وإلا المكتشفة."""
+    """Effective lock features: from settings if configured, else discovered."""
     configured = [f.strip() for f in settings.VEYON_LOCK_FEATURES if f.strip()]
     if configured:
         return configured
     return discover_lock_features()
 
 
+def _mark_active(device, feature, active=True):
+    with _ACTIVE_FEATURES_LOCK:
+        if active:
+            _ACTIVE_FEATURES[(device.ip_address, feature)] = True
+        else:
+            _ACTIVE_FEATURES.pop((device.ip_address, feature), None)
+
+
+def is_feature_active(device, feature):
+    with _ACTIVE_FEATURES_LOCK:
+        return _ACTIVE_FEATURES.get((device.ip_address, feature), False)
+
+
 def check_online(device):
     """
-    فحص اتصال حقيقي: يتحقق من استجابة Veyon عبر veyon-cli ping أو feature list على الجهاز البعيد.
-    يسقط إلى فحص المنفذ إذا فشل veyon-cli.
+    Real connection check: verifies Veyon responds via veyon-cli ping or feature list on remote device.
+    Falls back to port check if veyon-cli fails.
     """
     if settings.LAB_SIMULATE:
         return device.number % 6 != 0
@@ -131,7 +147,7 @@ def check_online(device):
 
 
 def check_many(devices):
-    """يفحص كل الأجهزة بالتوازي مع مهلة إجمالية لا تتجاوز ثانيتين لـ 40 جهازًا."""
+    """Check all devices in parallel with total timeout not exceeding 2 seconds for 40 devices."""
     devices = list(devices)
     if not devices:
         return {}
@@ -153,34 +169,37 @@ def check_many(devices):
 
 def get_lock_state(device):
     """
-    قراءة حالة القفل الفعلية من الجهاز البعيد.
-    يرجع: (is_locked, error_message) حيث error_message فارغ عند النجاح.
+    Read actual lock state from remote device.
+    Returns: (is_locked, error_message) where error_message empty on success.
+
+    Note: Veyon 4.11.3 does not provide a reliable CLI status query.
+    We fall back to local tracking based on successful lock commands.
     """
     if settings.LAB_SIMULATE:
         return device.is_blocked, ""
     if not device.ip_address:
-        return False, "لا يوجد عنوان IP"
+        return False, _("No IP address")
 
-    features = get_effective_lock_features()
+    if is_feature_active(device, "ScreenLock"):
+        return True, ""
+
+    features = [f for f in get_effective_lock_features() if f != "ScreenLock"]
     for feature in features:
-        ok, stdout, stderr = _run_veyon_cli(["feature", "status", device.ip_address, feature], timeout=3)
-        if not ok:
-            return False, f"فشل قراءة حالة {feature}: {stderr or stdout}"
-        out = (stdout or "").strip().lower()
-        if "on" in out or "active" in out or "running" in out or "true" in out:
+        if is_feature_active(device, feature):
             return True, ""
+
     return False, ""
 
 
 def set_lock(device, lock):
     """
-    يحظر الجهاز (lock=True) أو يفتحه (lock=False).
-    يرجع (نجاح, رسالة_خطأ).
+    Lock (lock=True) or unlock (lock=False) device.
+    Returns (success, error_message).
     """
     if settings.LAB_SIMULATE:
         return True, ""
     if not device.ip_address:
-        return False, "لا يوجد عنوان IP"
+        return False, _("No IP address")
 
     action = "start" if lock else "stop"
     features = get_effective_lock_features()
@@ -188,9 +207,11 @@ def set_lock(device, lock):
 
     for feature in features:
         ok, stdout, stderr = _run_veyon_cli(["feature", action, device.ip_address, feature], timeout=10)
-        if not ok:
-            err = (stderr or stdout or "فشل الأمر").strip()
-            logger.warning("فشل %s ميزة %s على %s: %s", action, feature, device.ip_address, err)
+        if ok:
+            _mark_active(device, feature, lock)
+        else:
+            err = (stderr or stdout or _("Command failed")).strip()
+            logger.warning(_("Failed %(action)s feature %(feature)s on %(ip)s: %(error)s"), {"action": action, "feature": feature, "ip": device.ip_address, "error": err})
             errors.append(f"{feature}: {err}")
 
     if errors:
@@ -200,9 +221,9 @@ def set_lock(device, lock):
 
 def sync_lock_states(devices):
     """
-    مزامنة حالة القفل لكل الأجهزة مع الواقع.
-    يحدث حقل is_blocked في قاعدة البيانات.
-    يرجع عدد الأجهزة التي تم تحديثها.
+    Sync lock state for all devices with reality.
+    Updates is_blocked field in database.
+    Returns number of devices updated.
     """
     if settings.LAB_SIMULATE:
         return 0
@@ -215,9 +236,6 @@ def sync_lock_states(devices):
         if not d.ip_address:
             continue
         is_locked, err = get_lock_state(d)
-        if err:
-            logger.warning("تعذر قراءة حالة القفل للجهاز %s (%s): %s", d.number, d.ip_address, err)
-            continue
         if d.is_blocked != is_locked:
             d.is_blocked = is_locked
             to_update.append(d)
@@ -225,12 +243,12 @@ def sync_lock_states(devices):
         Device = __import__("lab.models", fromlist=["Device"]).Device
         Device.objects.bulk_update(to_update, ["is_blocked"])
         updated = len(to_update)
-        logger.info("تم مزامنة حالة القفل لـ %d جهاز", updated)
+        logger.info(_("Synced lock state for %(count)d devices"), {"count": updated})
     return updated
 
 
 class VeyonError(Exception):
-    """استثناء موحد لأخطاء Veyon مع رسالة عربية."""
+    """Unified exception for Veyon errors with translatable message."""
 
     def __init__(self, message, code=None):
         super().__init__(message)
@@ -240,8 +258,8 @@ class VeyonError(Exception):
 
 def run_with_retry(device, action, feature, max_retries=2, base_timeout=5):
     """
-    تنفيذ أمر Veyon مع إعادة محاولة.
-    action: 'start' أو 'stop'
+    Run Veyon command with retry.
+    action: 'start' or 'stop'
     """
     last_error = ""
     for attempt in range(max_retries + 1):
@@ -249,7 +267,155 @@ def run_with_retry(device, action, feature, max_retries=2, base_timeout=5):
         ok, stdout, stderr = _run_veyon_cli(["feature", action, device.ip_address, feature], timeout=timeout)
         if ok:
             return True, ""
-        last_error = (stderr or stdout or "فشل الأمر").strip()
+        last_error = (stderr or stdout or _("Command failed")).strip()
         if attempt < max_retries:
-            logger.info("إعادة محاولة %d/%d لـ %s على %s", attempt + 1, max_retries, feature, device.ip_address)
+            logger.info(_("Retry %(attempt)d/%(max)d for %(feature)s on %(ip)s"), {"attempt": attempt + 1, "max": max_retries, "feature": feature, "ip": device.ip_address})
     return False, last_error
+
+
+# ---------------------------------------------------------------------------
+# Screen management operations
+# ---------------------------------------------------------------------------
+
+def remote_view(device):
+    """Start RemoteView on a device. Interactive window on teacher machine."""
+    if settings.LAB_SIMULATE:
+        _mark_active(device, "RemoteView")
+        return True, ""
+    if not device.ip_address:
+        return False, _("No IP address")
+    ok, stdout, stderr = _run_veyon_cli(["feature", "start", device.ip_address, "RemoteView"], timeout=10)
+    if ok:
+        _mark_active(device, "RemoteView")
+    return ok, (stderr or stdout or _("Command failed")).strip()
+
+
+def remote_control(device):
+    """Start RemoteControl on a device. Interactive window on teacher machine."""
+    if settings.LAB_SIMULATE:
+        _mark_active(device, "RemoteControl")
+        return True, ""
+    if not device.ip_address:
+        return False, _("No IP address")
+    ok, stdout, stderr = _run_veyon_cli(["feature", "start", device.ip_address, "RemoteControl"], timeout=10)
+    if ok:
+        _mark_active(device, "RemoteControl")
+    return ok, (stderr or stdout or _("Command failed")).strip()
+
+
+def stop_feature(device, feature):
+    """Stop an active feature on a device."""
+    if settings.LAB_SIMULATE:
+        _mark_active(device, feature, active=False)
+        return True, ""
+    if not device.ip_address:
+        return False, _("No IP address")
+    ok, stdout, stderr = _run_veyon_cli(["feature", "stop", device.ip_address, feature], timeout=10)
+    if ok:
+        _mark_active(device, feature, active=False)
+    return ok, (stderr or stdout or _("Command failed")).strip()
+
+
+def broadcast(device, fullscreen=True):
+    """Share teacher's screen to a device (fullscreen or window)."""
+    if settings.LAB_SIMULATE:
+        feature = "ShareOwnScreenFullScreen" if fullscreen else "ShareOwnScreenWindow"
+        _mark_active(device, feature)
+        return True, ""
+    if not device.ip_address:
+        return False, _("No IP address")
+    feature = "ShareOwnScreenFullScreen" if fullscreen else "ShareOwnScreenWindow"
+    ok, stdout, stderr = _run_veyon_cli(["feature", "start", device.ip_address, feature], timeout=10)
+    if ok:
+        _mark_active(device, feature)
+    return ok, (stderr or stdout or _("Command failed")).strip()
+
+
+def stop_broadcast(device, fullscreen=True):
+    """Stop screen broadcast to a device."""
+    feature = "ShareOwnScreenFullScreen" if fullscreen else "ShareOwnScreenWindow"
+    return stop_feature(device, feature)
+
+
+def send_text_message(device, message):
+    """Send a text message to a device."""
+    if settings.LAB_SIMULATE:
+        _mark_active(device, "TextMessage")
+        return True, ""
+    if not device.ip_address:
+        return False, _("No IP address")
+    ok, stdout, stderr = _run_veyon_cli(["feature", "start", device.ip_address, "TextMessage", message], timeout=10)
+    if ok:
+        _mark_active(device, "TextMessage")
+    return ok, (stderr or stdout or _("Command failed")).strip()
+
+
+def open_website(device, url):
+    """Open a website URL on a device."""
+    if settings.LAB_SIMULATE:
+        _mark_active(device, "OpenWebsite")
+        return True, ""
+    if not device.ip_address:
+        return False, _("No IP address")
+    ok, stdout, stderr = _run_veyon_cli(["feature", "start", device.ip_address, "OpenWebsite", url], timeout=10)
+    if ok:
+        _mark_active(device, "OpenWebsite")
+    return ok, (stderr or stdout or _("Command failed")).strip()
+
+
+def start_app(device, command):
+    """Start an application on a device."""
+    if settings.LAB_SIMULATE:
+        _mark_active(device, "StartApp")
+        return True, ""
+    if not device.ip_address:
+        return False, _("No IP address")
+    ok, stdout, stderr = _run_veyon_cli(["feature", "start", device.ip_address, "StartApp", command], timeout=10)
+    if ok:
+        _mark_active(device, "StartApp")
+    return ok, (stderr or stdout or _("Command failed")).strip()
+
+
+def screenshot(device):
+    """Take a screenshot on a device."""
+    if settings.LAB_SIMULATE:
+        _mark_active(device, "Screenshot")
+        return True, ""
+    if not device.ip_address:
+        return False, _("No IP address")
+    ok, stdout, stderr = _run_veyon_cli(["feature", "start", device.ip_address, "Screenshot"], timeout=10)
+    if ok:
+        _mark_active(device, "Screenshot")
+    return ok, (stderr or stdout or _("Command failed")).strip()
+
+
+def power_action(device, action):
+    """Perform a power action on a device."""
+    if settings.LAB_SIMULATE:
+        _mark_active(device, action)
+        return True, ""
+    if not device.ip_address:
+        return False, _("No IP address")
+    ok, stdout, stderr = _run_veyon_cli(["feature", "start", device.ip_address, action], timeout=10)
+    if ok:
+        _mark_active(device, action)
+    return ok, (stderr or stdout or _("Command failed")).strip()
+
+
+def get_supported_actions():
+    """Return the Veyon actions supported by this integration."""
+    return {
+        "lock": {"feature": "ScreenLock", "label": "Lock"},
+        "unlock": {"feature": "ScreenLock", "label": "Unlock"},
+        "remote_view": {"feature": "RemoteView", "label": "Remote View"},
+        "remote_control": {"feature": "RemoteControl", "label": "Remote Control"},
+        "broadcast_fullscreen": {"feature": "ShareOwnScreenFullScreen", "label": "Broadcast Fullscreen"},
+        "broadcast_window": {"feature": "ShareOwnScreenWindow", "label": "Broadcast Window"},
+        "text_message": {"feature": "TextMessage", "label": "Text Message"},
+        "open_website": {"feature": "OpenWebsite", "label": "Open Website"},
+        "start_app": {"feature": "StartApp", "label": "Start App"},
+        "screenshot": {"feature": "Screenshot", "label": "Screenshot"},
+        "power_on": {"feature": "PowerOn", "label": "Power On"},
+        "reboot": {"feature": "Reboot", "label": "Reboot"},
+        "power_down": {"feature": "PowerDown", "label": "Power Down"},
+    }

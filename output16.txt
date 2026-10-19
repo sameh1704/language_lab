@@ -1,0 +1,7 @@
+Traceback (most recent call last):
+  File "F:\ponix lab\language_lab\debug_test3.py", line 8, in <module>
+    from lab.consumers import TeacherConsumer, StudentConsumer
+  File "F:\ponix lab\language_lab\lab\consumers.py", line 229
+    with open("debug.txt", "a") as f: f.write("StudentConsumer: sent hello message: {\\"type\\": \\"hello\\", \\"number\\": %d, \\"device_uuid\\": \\"%s\\"}\\n" % (self.device.number, self.device.device_uuid))
+                                                                                             ^
+SyntaxError: unexpected character after line continuation character

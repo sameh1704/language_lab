@@ -1,0 +1,461 @@
+
+<!doctype html>
+<html lang="" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>لوحة معمل اللغات</title>
+<link rel="stylesheet" href="/static/lab/css/design-system.css">
+
+<style>
+  /* Page-specific dashboard styles that enhance the design system foundation */
+  
+  /* Modern top application header enhancements */
+  .ds-header {
+    background: var(--color-surface);
+    border-bottom: var(--border);
+  }
+  
+  .ds-header__branding {
+    gap: var(--space-4);
+  }
+  
+  .ds-header__logo {
+    width: 40px;
+    height: 40px;
+    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-light));
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
+  }
+  
+  .ds-header__title {
+    font-size: var(--text-2xl);
+    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  
+  .ds-header__status {
+    gap: var(--space-3);
+  }
+  
+  .ds-header__status-item {
+    background: var(--color-surface-subtle);
+    padding: var(--space-3) var(--space-5);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  }
+  
+  .ds-header__controls {
+    gap: var(--space-5);
+  }
+  
+  /* Enhanced action toolbar with modern visual hierarchy */
+  .ds-toolbar {
+    background: var(--color-surface);
+    border-bottom: var(--border-strong);
+    padding: var(--space-6) var(--space-9);
+  }
+  
+  .ds-toolbar__section {
+    background: var(--color-surface-subtle);
+    padding: var(--space-5);
+    border-radius: var(--radius-xl);
+    border: var(--border);
+  }
+  
+  .ds-toolbar__section-title {
+    color: var(--color-primary);
+    font-weight: var(--weight-bold);
+    margin-bottom: var(--space-4);
+    padding-bottom: var(--space-2);
+    border-bottom: 2px solid var(--color-primary);
+  }
+  
+  .ds-toolbar__actions {
+    gap: var(--space-4);
+  }
+  
+  .ds-toolbar__action-btn {
+    min-height: 48px;
+    padding: var(--space-4) var(--space-6);
+    border-radius: var(--radius-lg);
+    font-weight: var(--weight-semibold);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  }
+  
+  .ds-toolbar__action-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
+  }
+  
+  .ds-toolbar__action-btn:active {
+    transform: translateY(0);
+  }
+  
+  .ds-toolbar__action-btn--primary {
+    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
+    border: none;
+  }
+  
+  .ds-toolbar__action-btn--success {
+    background: linear-gradient(135deg, var(--color-success), var(--color-success-dark));
+    border: none;
+  }
+  
+  .ds-toolbar__action-btn--danger {
+    background: linear-gradient(135deg, var(--color-danger), var(--color-danger-dark));
+    border: none;
+  }
+  
+  /* Enhanced device grid with modern card design */
+  .ds-device-grid {
+    gap: var(--space-8);
+    margin-top: var(--space-12);
+  }
+  
+  /* Enhanced device card with modern visual hierarchy */
+  .ds-device-card {
+    background: var(--color-surface);
+    border-radius: var(--radius-2xl);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    border: 1px solid var(--color-border-subtle);
+    transition: all var(--transition-base);
+  }
+  
+  .ds-device-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 40px rgba(37, 99, 235, 0.15);
+    border-color: var(--color-primary);
+  }
+  
+  .ds-device-card--selected {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px var(--color-primary-ring);
+    background: linear-gradient(to bottom, var(--color-surface), var(--color-primary-soft));
+  }
+  
+  .ds-device-card__number {
+    font-size: var(--text-4xl);
+    font-weight: var(--weight-extrabold);
+    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  
+  .ds-device-card__status {
+    padding: var(--space-3) var(--space-5);
+    border-radius: var(--radius-lg);
+    font-weight: var(--weight-semibold);
+  }
+  
+  .ds-device-card__status--online {
+    background: linear-gradient(135deg, var(--color-success-soft), var(--color-success-light));
+    color: var(--color-success);
+    border: 1px solid var(--color-success-border);
+  }
+  
+  .ds-device-card__status--offline {
+    background: var(--color-offline);
+    color: var(--color-text-muted);
+    border: 1px solid var(--color-offline-border);
+  }
+  
+  .ds-device-card__meta {
+    background: var(--color-surface-subtle);
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-lg);
+  }
+  
+  /* Enhanced right-side control panel */
+  .ds-control-panel {
+    background: var(--color-surface);
+    border-left: var(--border-strong);
+    box-shadow: -8px 0 32px rgba(0,0,0,0.12);
+  }
+  
+  .ds-control-panel__header {
+    background: linear-gradient(135deg, var(--color-primary-soft), var(--color-surface));
+    border-bottom: var(--border-strong);
+  }
+  
+  .ds-control-panel__card {
+    background: var(--color-surface);
+    border-radius: var(--radius-xl);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    transition: all var(--transition-base);
+  }
+  
+  .ds-control-panel__card:hover {
+    box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+    transform: translateX(2px);
+  }
+  
+  .ds-control-panel__action-btn {
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+    transition: all var(--transition-base);
+  }
+  
+  .ds-control-panel__action-btn:hover {
+    background: var(--color-hover-bg);
+    border-color: var(--color-primary);
+    transform: translateX(4px);
+  }
+  
+  /* Enhanced bottom status bar */
+  .ds-status-bar {
+    background: linear-gradient(to right, var(--color-surface), var(--color-surface-subtle));
+    border-top: var(--border-strong);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.12);
+  }
+  
+  .ds-status-bar__item {
+    padding: var(--space-3) var(--space-6);
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+  
+  .ds-status-bar__value--primary {
+    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    font-weight: var(--weight-bold);
+  }
+  
+  /* Modern search and filter controls */
+  .ds-search-filter {
+    background: var(--color-surface);
+    border-radius: var(--radius-xl);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+    border: var(--border);
+  }
+  
+  .ds-search-filter__input {
+    border-radius: var(--radius-lg);
+    transition: all var(--transition-base);
+  }
+  
+  .ds-search-filter__input:focus {
+    box-shadow: 0 0 0 3px var(--color-primary-ring);
+  }
+  
+  .ds-search-filter__filter-btn {
+    border-radius: var(--radius-lg);
+    transition: all var(--transition-base);
+  }
+  
+  .ds-search-filter__filter-btn:hover {
+    background: var(--color-primary-soft);
+    border-color: var(--color-primary);
+  }
+  
+  .ds-search-filter__filter-btn--active {
+    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
+    color: white;
+    border: none;
+  }
+  
+  /* Enhanced selection bar */
+  .ds-selection-bar {
+    background: linear-gradient(135deg, var(--color-primary-soft), var(--color-surface));
+    border-radius: var(--radius-xl);
+    border: var(--border-strong);
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.1);
+  }
+  
+  .ds-selection-bar__btn {
+    border-radius: var(--radius-lg);
+    transition: all var(--transition-base);
+  }
+  
+  .ds-selection-bar__btn:hover {
+    background: var(--color-primary);
+    color: white;
+    transform: translateY(-1px);
+  }
+  
+  .ds-selection-bar__btn--primary {
+    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
+    border: none;
+    color: white;
+  }
+  
+  .ds-selection-bar__btn--danger {
+    background: linear-gradient(135deg, var(--color-danger), var(--color-danger-dark));
+    border: none;
+    color: white;
+  }
+  
+  /* RTL support enhancements */
+  html[dir="rtl"] .ds-control-panel {
+    border-left: none;
+    border-right: var(--border-strong);
+    box-shadow: 8px 0 32px rgba(0,0,0,0.12);
+  }
+  
+  html[dir="rtl"] .ds-control-panel__action-btn:hover {
+    transform: translateX(-4px);
+  }
+  
+  /* Responsive enhancements */
+  @media (max-width: 1200px) {
+    .ds-device-grid {
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    }
+    
+    .ds-control-panel {
+      width: 340px;
+    }
+  }
+  
+  @media (max-width: 1024px) {
+    .ds-toolbar__actions {
+      grid-template-columns: 1fr;
+    }
+    
+    .ds-control-panel {
+      transform: translateX(100%);
+    }
+    
+    .ds-control-panel--mobile-open {
+      transform: translateX(0);
+    }
+  }
+  
+  @media (max-width: 768px) {
+    .ds-header {
+      padding: var(--space-4) var(--space-5);
+    }
+    
+    .ds-toolbar {
+      padding: var(--space-4);
+    }
+    
+    .ds-device-workspace {
+      padding: var(--space-4);
+    }
+    
+    .ds-device-grid {
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: var(--space-4);
+    }
+    
+    .ds-device-card {
+      height: 140px;
+      padding: var(--space-4);
+    }
+    
+    .ds-device-card__number {
+      font-size: var(--text-3xl);
+    }
+    
+    .ds-control-panel {
+      width: 100%;
+      padding: var(--space-4);
+    }
+    
+    .ds-status-bar {
+      padding: var(--space-3);
+    }
+    
+    .ds-status-bar__group {
+      flex-direction: column;
+      gap: var(--space-3);
+    }
+  }
+  
+  /* Focus styles for accessibility */
+  .ds-toolbar__action-btn:focus-visible,
+  .ds-search-filter__input:focus-visible,
+  .ds-selection-bar__btn:focus-visible,
+  .ds-control-panel__action-btn:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 3px var(--color-primary-ring);
+  }
+  
+  /* Print styles */
+  @media print {
+    .ds-header,
+    .ds-toolbar,
+    .ds-control-panel,
+    .ds-status-bar,
+    .ds-search-filter,
+    .ds-selection-bar {
+      display: none;
+    }
+    
+    .ds-device-workspace {
+      padding: 0;
+      max-width: none;
+    }
+    
+    .ds-device-grid {
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    }
+    
+    .ds-device-card {
+      border: 1px solid #000;
+      page-break-inside: avoid;
+    }
+  }
+}
+
+</head>
+<body>
+<header class="ds-header" role="banner">
+  <div class="ds-header__branding">
+    <div class="ds-header__logo">LL</div>
+    <h1 class="ds-header__title">لوحة معمل اللغات</h1>
+  </div>
+  
+  <div class="ds-header__status">
+    <div class="ds-header__status-item">
+      <span class="ds-header__status-dot ds-header__status-dot--online"></span>
+      <span>جاهز</span>
+    </div>
+    <div class="ds-header__status-item">
+      <span class="ds-header__status-dot ds-header__status-dot--offline"></span>
+      <span>غير متصل</span>
+    </div>
+  </div>
+  
+  <div class="ds-header__controls">
+    
+    
+    <div class="ds-header__language-switcher">
+      
+<form class="language-switcher" method="post" action="/i18n/setlang/">
+  
+  <input type="hidden" name="next" value="">
+  <label for="interface-language">لغة الواجهة</label>
+  <select id="interface-language" name="language" aria-label="لغة الواجهة" onchange="this.form.submit()" dir="auto">
+    
+    <option value="ar" selected>العربية</option>
+    <option value="en" >English</option>
+    <option value="fr" >Français</option>
+  </select>
+</form>
+
+    </div>
+    
+    <div class="ds-header__user-info">
+      <span></span>
+      <form method="post" action="/logout/">
+        
+        <button type="submit" class="ds-header__logout">تسجيل الخروج</button>
+      </form>
+    </div>
+  </div>
+</header>
+
+
+<script src="/jsi18n/"></script>
+
+</body>
+</html>

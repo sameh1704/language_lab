@@ -1,0 +1,49 @@
+{% extends "lab/base.html" %}
+{% load i18n %}
+{% block title %}{{ asset.title }}{% endblock %}
+{% block style %}
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: "Segoe UI", Tahoma, Arial, sans-serif; background: #f3f4f6; margin: 0; color: #111827; }
+  header { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 20px; background: #fff; border-bottom: 1px solid #e5e7eb; }
+  header h1 { font-size: 20px; margin: 0; }
+  .preview { max-width: 900px; margin: 20px auto; padding: 20px; background: #fff; border-radius: 10px; }
+  .preview img, .preview video, .preview audio { max-width: 100%; border-radius: 8px; }
+  .meta { font-size: 14px; color: #6b7280; margin-bottom: 12px; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .actions a, .actions button { font: inherit; font-size: 14px; padding: 8px 14px; border-radius: 8px; text-decoration: none; border: 1px solid #d1d5db; background: #fff; cursor: pointer; }
+  .actions .primary { background: #2563eb; border-color: #2563eb; color: #fff; }
+  .error { color: #dc2626; }
+</style>
+{% endblock %}
+{% block content %}
+<header>
+  <h1>{{ asset.title }}</h1>
+  <div class="actions">
+    <a href="{% url 'media_library' %}">{% translate "المكتبة الوسائطية" %}</a>
+    <a href="{% url 'media_download' pk=asset.pk %}" download class="primary">{% translate "تنزيل" %}</a>
+  </div>
+</header>
+
+<div class="preview">
+  <div class="meta">
+    <b>{% translate "النوع" %}:</b> {{ asset.get_media_type_display }} &middot;
+    <b>MIME:</b> {{ asset.mime_type }} &middot;
+    <b>{% translate "الحجم" %}:</b> {{ asset.size|filesizeformat }} &middot;
+    {% if asset.content_language %}<b>{% translate "اللغة" %}:</b> {{ asset.content_language }}{% endif %}
+  </div>
+
+  {% if asset.media_type == 'image' %}
+    <img src="{{ asset.file.url }}" alt="{{ asset.title }}">
+  {% elif asset.media_type == 'audio' %}
+    <audio controls src="{{ asset.file.url }}"></audio>
+  {% elif asset.media_type == 'video' %}
+    <video controls src="{{ asset.file.url }}" style="max-width:100%;"></video>
+  {% elif asset.media_type == 'pdf' %}
+    <iframe src="{{ asset.file.url }}" style="width:100%;height:600px;border:1px solid #e5e7eb;border-radius:8px;"></iframe>
+  {% else %}
+    <p>{% translate "معاينة غير متوفرة لهذا النوع." %}</p>
+    <a href="{{ asset.file.url }}" download class="primary">{% translate "تنزيل الملف" %}</a>
+  {% endif %}
+</div>
+{% endblock %}

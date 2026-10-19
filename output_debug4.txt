@@ -1,0 +1,7 @@
+Traceback (most recent call last):
+  File "F:\ponix lab\language_lab\test_webrtc_signaling_fixed.py", line 14, in <module>
+    from lab.consumers import TeacherConsumer, StudentConsumer
+  File "F:\ponix lab\language_lab\lab\consumers.py", line 204
+    async def teacher_event(self, event):\nprint(f"[DEBUG] TeacherConsumer.teacher_event: received event={event}")
+                                          ^
+SyntaxError: unexpected character after line continuation character

@@ -1,0 +1,19 @@
+=== WebRTC Signaling Test ===
+
+Traceback (most recent call last):
+  File "F:\ponix lab\language_lab\test_webrtc_signaling_fixed.py", line 283, in <module>
+    asyncio.run(test_webrtc_signaling())
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\sameh\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 205, in run
+    return runner.run(main)
+           ~~~~~~~~~~^^^^^^
+  File "C:\Users\sameh\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 128, in run
+    return self._loop.run_until_complete(task)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "C:\Users\sameh\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py", line 720, in run_until_complete
+    return future.result()
+           ~~~~~~~~~~~~~^^
+  File "F:\ponix lab\language_lab\test_webrtc_signaling_fixed.py", line 36, in test_webrtc_signaling
+    await Device.filter(ip_address=ip_address).delete()
+          ^^^^^^^^^^^^^
+AttributeError: type object 'Device' has no attribute 'filter'

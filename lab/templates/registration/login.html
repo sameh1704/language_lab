@@ -1,9 +1,7 @@
-<!doctype html>
-<html lang="ar" dir="rtl">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>دخول المعلم</title>
+{% extends "lab/base.html" %}
+{% load i18n %}
+{% block title %}{% translate "دخول المعلم" %}{% endblock %}
+{% block style %}
 <style>
   body { font-family: "Segoe UI", Tahoma, Arial, sans-serif; background: #f3f4f6; margin: 0;
          display: flex; min-height: 100vh; align-items: center; justify-content: center; }
@@ -16,19 +14,20 @@
   button { margin-top: 18px; width: 100%; padding: 11px; border: 0; border-radius: 8px;
            background: #2563eb; color: #fff; font-size: 15px; cursor: pointer; }
   .err { color: #dc2626; font-size: 13px; margin-top: 10px; }
+  .language-switcher { position: fixed; inset-block-start: 16px; inset-inline-end: 16px; }
 </style>
-</head>
-<body>
+{% endblock %}
+{% block content %}
+{% include "lab/_language_switcher.html" %}
 <form method="post">
   {% csrf_token %}
-  <h1>لوحة تحكم معمل اللغات</h1>
-  <label for="id_username">اسم المستخدم</label>
+  <h1>{% translate "لوحة تحكم معمل اللغات" %}</h1>
+  <label for="id_username">{% translate "اسم المستخدم" %}</label>
   <input type="text" name="username" id="id_username" autofocus required>
-  <label for="id_password">كلمة المرور</label>
+  <label for="id_password">{% translate "كلمة المرور" %}</label>
   <input type="password" name="password" id="id_password" required>
-  {% if form.errors %}<div class="err">اسم المستخدم أو كلمة المرور غير صحيحة.</div>{% endif %}
+  {% if form.errors %}<div class="err">{% translate "اسم المستخدم أو كلمة المرور غير صحيحة." %}</div>{% endif %}
   <input type="hidden" name="next" value="{{ next }}">
-  <button type="submit">دخول</button>
+  <button type="submit">{% translate "دخول" %}</button>
 </form>
-</body>
-</html>
+{% endblock %}

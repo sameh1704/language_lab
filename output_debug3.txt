@@ -1,0 +1,7 @@
+Traceback (most recent call last):
+  File "F:\ponix lab\language_lab\test_webrtc_signaling_fixed.py", line 14, in <module>
+    from lab.consumers import TeacherConsumer, StudentConsumer
+  File "F:\ponix lab\language_lab\lab\consumers.py", line 205
+    print(f"[DEBUG] TeacherConsumer.teacher_event: received event={event}")
+    ^^^^^
+IndentationError: expected an indented block after function definition on line 204

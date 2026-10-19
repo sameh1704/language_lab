@@ -1,0 +1,4 @@
+  File "F:\ponix lab\language_lab\test3_instrumented.py", line 4
+    os.environ.setdefault(\"DJANGO_SETTINGS_MODULE\", \"labsys.settings\")
+                           ^
+SyntaxError: unexpected character after line continuation character

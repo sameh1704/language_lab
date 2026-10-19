@@ -1,0 +1,84 @@
+Creating test database for alias 'default'...
+
+E..........................................................................................2026-10-09 00:09:59,176 [INFO] lab.veyon: \u0645\u064a\u0632\u0627\u062a \u0627\u0644\u062d\u0638\u0631 \u0627\u0644\u0645\u0643\u062a\u0634\u0641\u0629: ['ScreenLock']
+....2026-10-09 00:09:59,182 [INFO] lab.veyon: \u0625\u0639\u0627\u062f\u0629 \u0627\u0644\u0645\u062d\u0627\u0648\u0644\u0629 1/2 \u0644\u0644\u0645\u064a\u0632\u0629 ScreenLock \u0639\u0644\u0649 192.168.1.101
+2026-10-09 00:09:59,183 [INFO] lab.veyon: \u0625\u0639\u0627\u062f\u0629 \u0627\u0644\u0645\u062d\u0627\u0648\u0644\u0629 2/2 \u0644\u0644\u0645\u064a\u0632\u0629 ScreenLock \u0639\u0644\u0649 192.168.1.101
+.2026-10-09 00:09:59,184 [INFO] lab.veyon: \u0625\u0639\u0627\u062f\u0629 \u0627\u0644\u0645\u062d\u0627\u0648\u0644\u0629 1/2 \u0644\u0644\u0645\u064a\u0632\u0629 ScreenLock \u0639\u0644\u0649 192.168.1.101
+.2026-10-09 00:09:59,186 [WARNING] lab.veyon: \u062a\u0639\u0630\u0631 start \u0627\u0644\u0645\u064a\u0632\u0629 ScreenLock \u0639\u0644\u0649 192.168.1.101: access denied
+...2026-10-09 00:09:59,192 [WARNING] lab.veyon: \u062a\u0639\u0630\u0631 start \u0627\u0644\u0645\u064a\u0632\u0629 ScreenLock \u0639\u0644\u0649 192.168.1.101: \u0644\u0645 \u064a\u064f\u0639\u062b\u0631 \u0639\u0644\u0649 veyon-cli\u060c \u062a\u062d\u0642\u0642 \u0645\u0646 \u0625\u0639\u062f\u0627\u062f VEYON_CLI.
+...........................2026-10-09 00:10:24,747 [INFO] lab.veyon: \u062a\u0645\u062a \u0645\u0632\u0627\u0645\u0646\u0629 \u062d\u0627\u0644\u0629 \u0627\u0644\u062d\u0638\u0631 \u0644\u0640 1 \u062c\u0647\u0627\u0632
+.
+======================================================================
+ERROR: test3_instrumented (unittest.loader._FailedTest.test3_instrumented)
+----------------------------------------------------------------------
+ImportError: Failed to import test module: test3_instrumented
+Traceback (most recent call last):
+  File "C:\Users\sameh\AppData\Local\Programs\Python\Python314\Lib\unittest\loader.py", line 433, in _find_test_path
+    module = self._get_module_from_name(name)
+  File "C:\Users\sameh\AppData\Local\Programs\Python\Python314\Lib\unittest\loader.py", line 374, in _get_module_from_name
+    __import__(name)
+    ~~~~~~~~~~^^^^^^
+  File "F:\ponix lab\language_lab\test3_instrumented.py", line 4
+    os.environ.setdefault(\"DJANGO_SETTINGS_MODULE\", \"labsys.settings\")
+                           ^
+SyntaxError: unexpected character after line continuation character
+
+
+----------------------------------------------------------------------
+Ran 128 tests in 44.078s
+
+FAILED (errors=1)
+Destroying test database for alias 'default'...
+
+LAB_SIMULATE env: not set
+LAB_SIMULATE setting: True
+Device 1: online=True
+Device 2: online=True
+Device 3: online=True
+Device 4: online=True
+Device 5: online=True
+Device 6: online=False
+Device 7: online=True
+Device 8: online=True
+Device 9: online=True
+Device 10: online=True
+Device 11: online=True
+Device 12: online=False
+CLI available (sim): None
+Lock features (sim): ['ScreenLock']
+Set lock (sim): ok=True, err=""
+Get lock state (sim): locked=False, err=""
+Found 128 test(s).
+System check identified no issues (0 silenced).
+[DEBUG] StudentConsumer._tell_teacher: sending to group teacher_2, payload={'type': 'presence', 'number': 1, 'device_uuid': '8374af57-bb2d-4d33-92cd-82b209e0cd71', 'online': True, 'classroom_id': 2}
+[DEBUG] StudentConsumer._tell_teacher: sending to group teacher_2, payload={'type': 'presence', 'number': 1, 'device_uuid': '8374af57-bb2d-4d33-92cd-82b209e0cd71', 'online': True, 'classroom_id': 2}
+StudentConsumer: after _tell_teacher call
+[DEBUG] StudentConsumer._tell_teacher: sending to group teacher_2, payload={'type': 'assistance_create', 'id': 1, 'student': 'wsstudent_a', 'device': 1, 'classroom_id': 2, 'request_type': 'hand_raise', 'status': 'open', 'created_at': '2026-10-08T21:09:47.146371+00:00'}
+[DEBUG] StudentConsumer._tell_teacher: sending to group teacher_2, payload={'type': 'assistance_create', 'id': 1, 'student': 'wsstudent_a', 'device': 1, 'classroom_id': 2, 'request_type': 'hand_raise', 'status': 'open', 'created_at': '2026-10-08T21:09:47.146371+00:00'}
+[DEBUG] StudentConsumer._tell_teacher: sending to group teacher_2, payload={'type': 'presence', 'number': 1, 'device_uuid': '8374af57-bb2d-4d33-92cd-82b209e0cd71', 'online': False, 'classroom_id': 2}
+[DEBUG] StudentConsumer._tell_teacher: sending to group teacher_2, payload={'type': 'presence', 'number': 1, 'device_uuid': '8374af57-bb2d-4d33-92cd-82b209e0cd71', 'online': False, 'classroom_id': 2}
+[DEBUG] TeacherConsumer.connect: teacher_group=teacher_3, classroom_id=3
+[DEBUG] TeacherConsumer.connect: teacher_group=teacher_2, classroom_id=2
+[DEBUG] TeacherConsumer.connect: teacher_group=teacher_3, classroom_id=3
+[DEBUG] StudentConsumer._tell_teacher: sending to group teacher_2, payload={'type': 'presence', 'number': 1, 'device_uuid': '8374af57-bb2d-4d33-92cd-82b209e0cd71', 'online': True, 'classroom_id': 2}
+[DEBUG] StudentConsumer._tell_teacher: sending to group teacher_2, payload={'type': 'presence', 'number': 1, 'device_uuid': '8374af57-bb2d-4d33-92cd-82b209e0cd71', 'online': True, 'classroom_id': 2}
+StudentConsumer: after _tell_teacher call
+[DEBUG] TeacherConsumer.teacher_event: received event={'type': 'teacher_event', 'payload': {'type': 'presence', 'number': 1, 'device_uuid': '8374af57-bb2d-4d33-92cd-82b209e0cd71', 'online': True, 'classroom_id': 2}}
+[DEBUG] StudentConsumer._tell_teacher: sending to group teacher_2, payload={'type': 'assistance_create', 'id': 1, 'student': 'wsstudent_a', 'device': 1, 'classroom_id': 2, 'request_type': 'hand_raise', 'status': 'open', 'created_at': '2026-10-08T21:09:48.201669+00:00'}
+[DEBUG] StudentConsumer._tell_teacher: sending to group teacher_2, payload={'type': 'assistance_create', 'id': 1, 'student': 'wsstudent_a', 'device': 1, 'classroom_id': 2, 'request_type': 'hand_raise', 'status': 'open', 'created_at': '2026-10-08T21:09:48.201669+00:00'}
+[DEBUG] TeacherConsumer.teacher_event: received event={'type': 'teacher_event', 'payload': {'type': 'assistance_create', 'id': 1, 'student': 'wsstudent_a', 'device': 1, 'classroom_id': 2, 'request_type': 'hand_raise', 'status': 'open', 'created_at': '2026-10-08T21:09:48.201669+00:00'}}
+[DEBUG] StudentConsumer._tell_teacher: sending to group teacher_2, payload={'type': 'presence', 'number': 1, 'device_uuid': '8374af57-bb2d-4d33-92cd-82b209e0cd71', 'online': False, 'classroom_id': 2}
+[DEBUG] StudentConsumer._tell_teacher: sending to group teacher_2, payload={'type': 'presence', 'number': 1, 'device_uuid': '8374af57-bb2d-4d33-92cd-82b209e0cd71', 'online': False, 'classroom_id': 2}
+[DEBUG] TeacherConsumer.teacher_event: received event={'type': 'teacher_event', 'payload': {'type': 'presence', 'number': 1, 'device_uuid': '8374af57-bb2d-4d33-92cd-82b209e0cd71', 'online': False, 'classroom_id': 2}}
+[DEBUG] TeacherConsumer.connect: teacher_group=teacher_2, classroom_id=2
+[DEBUG] StudentConsumer._tell_teacher: sending to group teacher_2, payload={'type': 'presence', 'number': 1, 'device_uuid': '8374af57-bb2d-4d33-92cd-82b209e0cd71', 'online': True, 'classroom_id': 2}
+[DEBUG] StudentConsumer._tell_teacher: sending to group teacher_2, payload={'type': 'presence', 'number': 1, 'device_uuid': '8374af57-bb2d-4d33-92cd-82b209e0cd71', 'online': True, 'classroom_id': 2}
+StudentConsumer: after _tell_teacher call
+[DEBUG] TeacherConsumer.teacher_event: received event={'type': 'teacher_event', 'payload': {'type': 'presence', 'number': 1, 'device_uuid': '8374af57-bb2d-4d33-92cd-82b209e0cd71', 'online': True, 'classroom_id': 2}}
+[DEBUG] StudentConsumer._tell_teacher: sending to group teacher_2, payload={'type': 'assistance_create', 'id': 1, 'student': 'wsstudent_a', 'device': 1, 'classroom_id': 2, 'request_type': 'help', 'status': 'open', 'created_at': '2026-10-08T21:09:49.241569+00:00'}
+[DEBUG] StudentConsumer._tell_teacher: sending to group teacher_2, payload={'type': 'assistance_create', 'id': 1, 'student': 'wsstudent_a', 'device': 1, 'classroom_id': 2, 'request_type': 'help', 'status': 'open', 'created_at': '2026-10-08T21:09:49.241569+00:00'}
+[DEBUG] TeacherConsumer.teacher_event: received event={'type': 'teacher_event', 'payload': {'type': 'assistance_create', 'id': 1, 'student': 'wsstudent_a', 'device': 1, 'classroom_id': 2, 'request_type': 'help', 'status': 'open', 'created_at': '2026-10-08T21:09:49.241569+00:00'}}
+[DEBUG] StudentConsumer._tell_teacher: sending to group teacher_2, payload={'type': 'presence', 'number': 1, 'device_uuid': '8374af57-bb2d-4d33-92cd-82b209e0cd71', 'online': False, 'classroom_id': 2}
+[DEBUG] StudentConsumer._tell_teacher: sending to group teacher_2, payload={'type': 'presence', 'number': 1, 'device_uuid': '8374af57-bb2d-4d33-92cd-82b209e0cd71', 'online': False, 'classroom_id': 2}
+[DEBUG] TeacherConsumer.teacher_event: received event={'type': 'teacher_event', 'payload': {'type': 'presence', 'number': 1, 'device_uuid': '8374af57-bb2d-4d33-92cd-82b209e0cd71', 'online': False, 'classroom_id': 2}}
+[DEBUG] TeacherConsumer.connect: teacher_group=teacher_2, classroom_id=2

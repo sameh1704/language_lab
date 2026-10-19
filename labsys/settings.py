@@ -27,9 +27,10 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
-    "lab.access.LocalOnlyMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.middleware.locale.LocaleMiddleware",
     "django.middleware.common.CommonMiddleware",
+    "lab.access.LocalOnlyMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
@@ -46,6 +47,7 @@ TEMPLATES = [
         "OPTIONS": {
             "context_processors": [
                 "django.template.context_processors.request",
+                "django.template.context_processors.i18n",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
             ],
@@ -71,7 +73,20 @@ TIME_ZONE = "Africa/Cairo"
 USE_I18N = True
 USE_TZ = True
 
+# Internationalization
+LANGUAGES = [
+    ("ar", "العربية"),
+    ("en", "English"),
+    ("fr", "Français"),
+]
+
+LOCALE_PATHS = [
+    BASE_DIR / "locale",
+]
+
 STATIC_URL = "static/"
+MEDIA_URL = "media/"
+MEDIA_ROOT = BASE_DIR / "media"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 LOGIN_URL = "login"

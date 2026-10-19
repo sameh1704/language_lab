@@ -1,15 +1,15 @@
-<!doctype html>
-<html lang="ar" dir="rtl">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>إعداد الاتصال</title>
+{% extends "lab/base.html" %}
+{% load i18n %}
+{% block title %}{% translate "إعداد الاتصال" %}{% endblock %}
+{% block style %}
 <style>
   * { box-sizing: border-box; }
   body { font-family: "Segoe UI", Tahoma, Arial, sans-serif; background: #f3f4f6; margin: 0; color: #111827; }
   header { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;
            padding: 12px 20px; background: #fff; border-bottom: 1px solid #e5e7eb; }
   header h1 { font-size: 20px; margin: 0; }
+  .language-switcher { display: inline-flex; align-items: center; gap: 6px; }
+  .language-switcher select { font: inherit; }
   a { color: #2563eb; text-decoration: none; }
   .sim { background: #fef3c7; color: #92400e; padding: 8px 20px; font-size: 14px; text-align: center; }
   main { max-width: 1100px; margin: 0 auto; padding: 16px 20px 40px; display: grid; gap: 16px; }
@@ -31,6 +31,8 @@
   .node ul { margin: 0; padding-inline-start: 18px; font-size: 13px; line-height: 1.9; color: #374151; }
   .links { display: flex; flex-direction: column; justify-content: center; gap: 12px; }
   .lk { border-radius: 10px; padding: 8px 10px; font-size: 13px; line-height: 1.7; text-align: center; }
+  .flow-arrow { display: inline-block; }
+  html[dir="ltr"] .flow-arrow { transform: scaleX(-1); }
   .lk.a { background: #fee2e2; border: 1px solid #fca5a5; }
   .lk.b { background: #dcfce7; border: 1px solid #86efac; }
   @media (max-width: 800px) { .diagram { grid-template-columns: 1fr; } }
@@ -69,102 +71,104 @@
   .cmd button { margin-top: 6px; }
   ol.steps { margin: 6px 0 12px; padding-inline-start: 20px; line-height: 2; font-size: 14px; }
 </style>
-</head>
-<body>
+{% endblock %}
+{% block content %}
 <header>
-  <h1>إعداد الاتصال بين جهاز المعلم وأجهزة الطلاب</h1>
-  <a href="{% url 'dashboard' %}">&rarr; العودة للوحة المعمل</a>
+  <h1>{% translate "إعداد الاتصال بين جهاز المعلم وأجهزة الطلاب" %}</h1>
+  <a href="{% url 'dashboard' %}"><span class="back-arrow" aria-hidden="true">&rarr;</span> {% translate "العودة للوحة المعمل" %}</a>
+  {% include "lab/_language_switcher.html" %}
 </header>
-{% if simulate %}<div class="sim">وضع تجريبي (LAB_SIMULATE): فحص Veyon وهمي، أما صفحة الطالب فتظهر فقط إذا فُتحت فعليًا.</div>{% endif %}
+{% if simulate %}<div class="sim">{% translate "وضع تجريبي (LAB_SIMULATE): فحص Veyon وهمي، أما صفحة الطالب فتظهر فقط إذا فُتحت فعليًا." %}</div>{% endif %}
 
 <main>
   <section class="card">
-    <h2>كيف يتصل النظام؟</h2>
-    <p class="sub">هناك قناتان بين جهاز المعلم وكل جهاز طالب، ولا يعمل النظام كاملًا إلا بوجود الاثنتين. ويُعرَّف كل جهاز طالب بعنوان IP الخاص به، فكل رقم (1 إلى 40) مرتبط بعنوان واحد.</p>
+    <h2>{% translate "كيف يتصل النظام؟" %}</h2>
+    <p class="sub">{% translate "هناك قناتان بين جهاز المعلم وكل جهاز طالب، ولا يعمل النظام كاملًا إلا بوجود الاثنتين. ويُعرَّف كل جهاز طالب بعنوان IP الخاص به، فكل رقم (1 إلى 40) مرتبط بعنوان واحد." %}</p>
     <div class="diagram">
-      <div class="node"><b>جهاز المعلم</b>
-        <ul><li>لوحة Django (من localhost)</li><li>Veyon: <code>veyon-cli</code> للحظر والفتح</li><li>خادم الصوت على المنفذ <span class="port"></span></li></ul>
+      <div class="node"><b>{% translate "جهاز المعلم" %}</b>
+        <ul><li>{% translate "لوحة Django (من localhost)" %}</li><li>Veyon: <code>veyon-cli</code> {% translate "للحظر والفتح" %}</li><li>{% translate "خادم الصوت على المنفذ" %} <span class="port"></span></li></ul>
       </div>
       <div class="links">
-        <div class="lk a"><b>① التحكم والحظر</b><br>Veyon عبر المنفذ <b>11100</b> &larr;<br>المعلم يرسل الأوامر للطالب</div>
-        <div class="lk b"><b>② الصوت والتحدث</b><br>WebSocket + WebRTC عبر المنفذ <b class="port"></b> &harr;<br>تعمل ما دامت صفحة الطالب مفتوحة</div>
+        <div class="lk a"><b>{% translate "① التحكم والحظر" %}</b><br>Veyon {% translate "عبر المنفذ" %} <b>11100</b> <span class="flow-arrow">&larr;</span><br>{% translate "المعلم يرسل الأوامر للطالب" %}</div>
+        <div class="lk b"><b>{% translate "② الصوت والتحدث" %}</b><br>WebSocket + WebRTC {% translate "عبر المنفذ" %} <b class="port"></b> &harr;<br>{% translate "تعمل ما دامت صفحة الطالب مفتوحة" %}</div>
       </div>
-      <div class="node"><b>جهاز الطالب</b>
-        <ul><li>خدمة Veyon تعمل في الخلفية</li><li>صفحة الطالب مفتوحة في Chrome أو Edge</li><li>سماعة رأس بميكروفون</li></ul>
+      <div class="node"><b>{% translate "جهاز الطالب" %}</b>
+        <ul><li>{% translate "خدمة Veyon تعمل في الخلفية" %}</li><li>{% translate "صفحة الطالب مفتوحة في Chrome أو Edge" %}</li><li>{% translate "سماعة رأس بميكروفون" %}</li></ul>
       </div>
     </div>
   </section>
 
   <section class="card">
-    <h2>① جهاز المعلم</h2>
-    <p class="sub">فحص تلقائي لهذا الجهاز، وتحديث كل ثلاث ثوانٍ.</p>
-    <ul class="checks" id="checks"><li>جارٍ الفحص...</li></ul>
+    <h2>① {% translate "جهاز المعلم" %}</h2>
+    <p class="sub">{% translate "فحص تلقائي لهذا الجهاز، وتحديث كل ثلاث ثوانٍ." %}</p>
+    <ul class="checks" id="checks"><li>{% translate "جارٍ الفحص..." %}</li></ul>
   </section>
 
   <section class="card">
-    <h2>② إعدادات Veyon والحظر</h2>
-    <p class="sub">اكتشاف ميزات القفل المتاحة في Veyon واختبار الحظر على جهاز واحد. التغيير هنا مؤقت (للجلسة)؛ للتطبيق الدائم عدّل متغير البيئة <code>VEYON_LOCK_FEATURES</code>.</p>
+    <h2>② {% translate "إعدادات Veyon والحظر" %}</h2>
+    <p class="sub">{% translate "اكتشاف ميزات القفل المتاحة في Veyon واختبار الحظر على جهاز واحد. التغيير هنا مؤقت (للجلسة)؛ للتطبيق الدائم عدّل متغير البيئة" %} <code>VEYON_LOCK_FEATURES</code>.</p>
     <div class="row">
-      <button id="lf-discover">اكتشاف ميزات القفل</button>
+      <button id="lf-discover">{% translate "اكتشاف ميزات القفل" %}</button>
       <span id="lf-status" style="font-size:14px;color:#374151"></span>
     </div>
     <div class="row" id="lf-list"></div>
     <div class="row">
-      <label>اختبار الحظر على جهاز: <select id="test-num"></select></label>
-      <button class="danger" id="test-lock">حظر</button>
-      <button class="ok" id="test-unlock">فتح</button>
+      <label>{% translate "اختبار الحظر على جهاز:" %} <select id="test-num"></select></label>
+      <button class="danger" id="test-lock">{% translate "حظر" %}</button>
+      <button class="ok" id="test-unlock">{% translate "فتح" %}</button>
       <span id="test-result" style="font-size:14px"></span>
     </div>
     <div class="row">
-      <button id="sync-locks">مزامنة حالة الحظر مع الواقع</button>
+      <button id="sync-locks">{% translate "مزامنة حالة الحظر مع الواقع" %}</button>
       <span id="sync-result" style="font-size:14px;color:#374151"></span>
     </div>
   </section>
 
   <section class="card">
-    <h2>③ ربط أجهزة الطلاب</h2>
-    <p class="sub">كل صف يوضح هل وصل المعلم إلى الجهاز عبر القناتين، وما المطلوب إن لم يصل. عدّل العنوان بكتابته مباشرة في الخانة.</p>
+    <h2>③ {% translate "ربط أجهزة الطلاب" %}</h2>
+    <p class="sub">{% translate "كل صف يوضح هل وصل المعلم إلى الجهاز عبر القناتين، وما المطلوب إن لم يصل. عدّل العنوان بكتابته مباشرة في الخانة." %}</p>
 
     <div class="row">
-      <b>الطريقة السريعة: وضع الربط</b>
-      <button class="primary" id="pair-btn">تفعيل وضع الربط (10 دقائق)</button>
+      <b>{% translate "الطريقة السريعة: وضع الربط" %}</b>
+      <button class="primary" id="pair-btn">{% translate "تفعيل وضع الربط (10 دقائق)" %}</button>
       <span id="pair-state"></span>
     </div>
     <ol class="steps">
-      <li>فعّل وضع الربط من الزر أعلاه.</li>
-      <li>على كل جهاز طالب افتح صفحة الطالب: <code class="student-url">http://IP:PORT/student/</code></li>
-      <li>اختر رقم الجهاز المكتوب عليه، فيُسجَّل عنوانه تلقائيًا ويظهر هنا في الجدول.</li>
-      <li>أوقف وضع الربط بعد الانتهاء، لأن أي جهاز يستطيع تسجيل نفسه ما دام مفعّلًا.</li>
+      <li>{% translate "فعّل وضع الربط من الزر أعلاه." %}</li>
+      <li>{% translate "على كل جهاز طالب افتح صفحة الطالب:" %} <code class="student-url">http://IP:PORT/student/</code></li>
+      <li>{% translate "اختر رقم الجهاز المكتوب عليه، فيُسجَّل عنوانه تلقائيًا ويظهر هنا في الجدول." %}</li>
+      <li>{% translate "أوقف وضع الربط بعد الانتهاء، لأن أي جهاز يستطيع تسجيل نفسه ما دام مفعّلًا." %}</li>
     </ol>
 
     <div class="row">
-      <b>أو تعبئة العناوين دفعة واحدة:</b>
+      <b>{% translate "أو تعبئة العناوين دفعة واحدة:" %}</b>
       <input id="fill-prefix" size="14" dir="ltr" placeholder="192.168.1.">
       <input id="fill-start" type="number" min="1" max="254" style="width:90px" value="101" dir="ltr">
-      <button id="fill-btn">تعبئة (الجهاز 1 يأخذ هذا الرقم والباقي بالتتابع)</button>
+      <button id="fill-btn">{% translate "تعبئة (الجهاز 1 يأخذ هذا الرقم والباقي بالتتابع)" %}</button>
     </div>
 
     <div id="flash"></div>
     <div class="summary" id="summary"></div>
     <div class="tbl">
       <table>
-        <thead><tr><th>الجهاز</th><th>عنوان IP</th><th>① Veyon (التحكم)</th><th>② صفحة الطالب (الصوت)</th><th>الحالة وما المطلوب</th></tr></thead>
+        <thead><tr><th>{% translate "الجهاز" %}</th><th>{% translate "عنوان IP" %}</th><th>① Veyon ({% translate "التحكم" %})</th><th>② {% translate "صفحة الطالب" %} ({% translate "الصوت" %})</th><th>{% translate "الحالة وما المطلوب" %}</th></tr></thead>
         <tbody id="rows"></tbody>
       </table>
     </div>
   </section>
 
   <section class="card">
-    <h2>④ أوامر وإعدادات جاهزة للنسخ</h2>
-    <p class="sub">تُبنى تلقائيًا من عنوان جهاز المعلم المختار.</p>
+    <h2>④ {% translate "أوامر وإعدادات جاهزة للنسخ" %}</h2>
+    <p class="sub">{% translate "تُبنى تلقائيًا من عنوان جهاز المعلم المختار." %}</p>
     <div class="row">
-      <label>عنوان جهاز المعلم: <select id="ipsel"></select></label>
-      <label>متصفح الطلاب: <select id="browser"><option value="chrome">Chrome</option><option value="edge">Edge</option></select></label>
+      <label>{% translate "عنوان جهاز المعلم:" %} <select id="ipsel"></select></label>
+      <label>{% translate "متصفح الطلاب:" %} <select id="browser"><option value="chrome">Chrome</option><option value="edge">Edge</option></select></label>
     </div>
     <div id="cmds"></div>
   </section>
 </main>
-
+{% endblock %}
+{% block script %}
 <script>
 const $ = id => document.getElementById(id);
 const PORT = location.port || '80';
@@ -200,20 +204,20 @@ function renderChecks(s) {
   const missing = s.devices.filter(d => !d.ip).length;
   const items = [];
   items.push(t.lan_ips.length
-    ? ['ok', 'عنوان جهاز المعلم على الشبكة: ' + t.lan_ips.join('، '), '']
-    : ['bad', 'لم يُعثر على عنوان شبكة لجهاز المعلم', 'تأكد أن الجهاز موصول بشبكة المعمل.']);
+    ? ['ok', interpolate(gettext('عنوان جهاز المعلم على الشبكة: %(ips)s'), { ips: t.lan_ips.join(gettext('، ')) }, true), '']
+    : ['bad', gettext('لم يُعثر على عنوان شبكة لجهاز المعلم'), gettext('تأكد أن الجهاز موصول بشبكة المعمل.')]);
   items.push(t.secure_origin
-    ? ['ok', 'اللوحة مفتوحة من localhost، فالميكروفون متاح', '']
-    : ['bad', 'اللوحة مفتوحة من عنوان الشبكة، والمتصفح سيمنع الميكروفون', 'افتحها من http://localhost:' + PORT]);
-  if (t.veyon_cli === null) items.push(['na', 'Veyon: الوضع التجريبي مفعّل', 'اضبط LAB_SIMULATE=0 للتشغيل الفعلي.']);
+    ? ['ok', gettext('اللوحة مفتوحة من localhost، فالميكروفون متاح'), '']
+    : ['bad', gettext('اللوحة مفتوحة من عنوان الشبكة، والمتصفح سيمنع الميكروفون'), gettext('افتحها من http://localhost:') + PORT]);
+  if (t.veyon_cli === null) items.push(['na', gettext('Veyon: الوضع التجريبي مفعّل'), gettext('اضبط LAB_SIMULATE=0 للتشغيل الفعلي.')]);
   else items.push(t.veyon_cli
-    ? ['ok', 'veyon-cli موجود على جهاز المعلم', t.veyon_cli_path]
-    : ['bad', 'veyon-cli غير موجود', 'ثبّت Veyon أو صحّح المسار في VEYON_CLI (الحالي: ' + t.veyon_cli_path + ')']);
+    ? ['ok', gettext('veyon-cli موجود على جهاز المعلم'), t.veyon_cli_path]
+    : ['bad', gettext('veyon-cli غير موجود'), interpolate(gettext('ثبّت Veyon أو صحّح المسار في VEYON_CLI (الحالي: %(path)s)'), { path: t.veyon_cli_path }, true)]);
   items.push(missing
-    ? ['warn', missing + ' جهاز بدون عنوان IP', 'استخدم وضع الربط أو التعبئة الجماعية أدناه.']
-    : ['ok', 'لكل الأجهزة عنوان IP', '']);
+    ? ['warn', interpolate(gettext('%(count)s جهاز بدون عنوان IP'), { count: missing }, true), gettext('استخدم وضع الربط أو التعبئة الجماعية أدناه.')]
+    : ['ok', gettext('لكل الأجهزة عنوان IP'), '']);
   const ready = s.devices.filter(d => d.state === 'ready').length;
-  items.push([ready === s.devices.length ? 'ok' : 'warn', 'الأجهزة الجاهزة: ' + ready + ' من ' + s.devices.length, '']);
+  items.push([ready === s.devices.length ? 'ok' : 'warn', interpolate(gettext('الأجهزة الجاهزة: %(ready)s من %(total)s'), { ready, total: s.devices.length }, true), '']);
 
   const ul = $('checks');
   ul.textContent = '';
@@ -238,7 +242,7 @@ function buildRow(d) {
   input.type = 'text'; input.placeholder = '192.168.1.x'; input.dir = 'ltr';
   input.addEventListener('change', async () => {
     const res = await post('/api/setup/ip/', { number: d.number, ip: input.value.trim() });
-    flash(res.ok ? 'تم حفظ عنوان الجهاز ' + d.number : (res.data.error || 'تعذر الحفظ'), res.ok);
+    flash(res.ok ? interpolate(gettext('تم حفظ عنوان الجهاز %(number)s'), { number: d.number }, true) : (res.data.error || gettext('تعذر الحفظ')), res.ok);
     poll();
   });
   mk().append(input);
@@ -252,16 +256,16 @@ function renderRows(s) {
     if (!rowEls[d.number]) buildRow(d);
     const r = rowEls[d.number];
     if (document.activeElement !== r.input) r.input.value = d.ip;
-    paint(r.v, d.veyon, 'يستجيب', 'لا يستجيب');
-    paint(r.p, d.page, 'مفتوحة', 'غير مفتوحة');
+    paint(r.v, d.veyon, gettext('يستجيب'), gettext('لا يستجيب'));
+    paint(r.p, d.page, gettext('مفتوحة'), gettext('غير مفتوحة'));
     r.h.textContent = d.hint;
     r.tr.className = d.state === 'ready' ? 'ready' : '';
   });
   const count = st => s.devices.filter(d => d.state === st).length;
   const sum = $('summary');
   sum.textContent = '';
-  [['ok', 'جاهز', count('ready')], ['bad', 'Veyon لا يستجيب', count('veyon_down') + count('page_only')],
-   ['', 'صفحة الطالب غير مفتوحة', count('page_missing')], ['', 'بدون IP', count('no_ip')]].forEach(([cls, label, n]) => {
+  [['ok', gettext('جاهز'), count('ready')], ['bad', gettext('Veyon لا يستجيب'), count('veyon_down') + count('page_only')],
+   ['', gettext('صفحة الطالب غير مفتوحة'), count('page_missing')], ['', gettext('بدون IP'), count('no_ip')]].forEach(([cls, label, n]) => {
     const p = document.createElement('span');
     p.className = 'pill ' + cls;
     p.textContent = label + ': ' + n;
@@ -272,11 +276,11 @@ function renderRows(s) {
 // ---------------- وضع الربط
 function renderPair() {
   const on = pairLeft > 0;
-  $('pair-btn').textContent = on ? 'إيقاف وضع الربط' : 'تفعيل وضع الربط (10 دقائق)';
+  $('pair-btn').textContent = on ? gettext('إيقاف وضع الربط') : gettext('تفعيل وضع الربط (10 دقائق)');
   $('pair-btn').className = on ? '' : 'primary';
   const mm = String(Math.floor(pairLeft / 60)).padStart(2, '0');
   const ss = String(pairLeft % 60).padStart(2, '0');
-  $('pair-state').textContent = on ? 'مفعّل — المتبقي ' + mm + ':' + ss : 'متوقف';
+  $('pair-state').textContent = on ? interpolate(gettext('مفعّل — المتبقي %(time)s'), { time: mm + ':' + ss }, true) : gettext('متوقف');
   $('pair-state').style.color = on ? '#15803d' : '#6b7280';
 }
 $('pair-btn').addEventListener('click', async () => {
@@ -287,15 +291,15 @@ $('pair-btn').addEventListener('click', async () => {
 setInterval(() => { if (pairLeft > 0) { pairLeft--; renderPair(); } }, 1000);
 
 $('fill-btn').addEventListener('click', async () => {
-  if (!confirm('سيتم استبدال عناوين كل الأجهزة. متابعة؟')) return;
+  if (!confirm(gettext('سيتم استبدال عناوين كل الأجهزة. متابعة؟'))) return;
   const res = await post('/api/setup/fill/', { prefix: $('fill-prefix').value.trim(), start: Number($('fill-start').value) });
-  flash(res.ok ? 'تمت تعبئة العناوين' : (res.data.error || 'تعذر التنفيذ'), res.ok);
+  flash(res.ok ? gettext('تمت تعبئة العناوين') : (res.data.error || gettext('تعذر التنفيذ')), res.ok);
   poll();
 });
 
 // ---------------- الأوامر الجاهزة
 function renderCmds() {
-  const ip = $('ipsel').value || 'عنوان_المعلم';
+  const ip = $('ipsel').value || gettext('عنوان المعلم');
   const first = status && status.devices.find(d => d.ip);
   const sample = first ? first.ip : '192.168.1.101';
   const vport = status ? status.teacher.veyon_port : 11100;
@@ -306,17 +310,17 @@ function renderCmds() {
   document.querySelectorAll('.student-url').forEach(e => { e.textContent = base + '/student/'; });
 
   const cmds = [
-    ['فتح المنفذ في جدار حماية جهاز المعلم', 'مرة واحدة على جهاز المعلم، في موجّه أوامر بصلاحية المسؤول (Administrator).',
+    [gettext('فتح المنفذ في جدار حماية جهاز المعلم'), gettext('مرة واحدة على جهاز المعلم، في موجّه أوامر بصلاحية المسؤول (Administrator).'),
      'netsh advfirewall firewall add rule name="LanguageLab" dir=in action=allow protocol=TCP localport=' + PORT],
-    ['تشغيل النظام على جهاز المعلم', 'من مجلد المشروع، في كل مرة تريد تشغيل المعمل.',
+    [gettext('تشغيل النظام على جهاز المعلم'), gettext('من مجلد المشروع، في كل مرة تريد تشغيل المعمل.'),
      'set LAB_SIMULATE=0\npython manage.py runserver 0.0.0.0:' + PORT + ' --noreload'],
-    ['اختصار صفحة الطالب', 'على سطح مكتب كل جهاز طالب: كليك يمين ← جديد ← اختصار، ثم الصق هذا في خانة الموقع. الخيارات تفتح الصفحة تلقائيًا بالصوت والميكروفون دون أسئلة.',
+    [gettext('اختصار صفحة الطالب'), gettext('على سطح مكتب كل جهاز طالب: كليك يمين ← جديد ← اختصار، ثم الصق هذا في خانة الموقع. الخيارات تفتح الصفحة تلقائيًا بالصوت والميكروفون دون أسئلة.'),
      exe + ' --app=' + base + '/student/ --user-data-dir=C:\\LabStudent --autoplay-policy=no-user-gesture-required --use-fake-ui-for-media-stream --disable-features=WebRtcHideLocalIpsWithMdns --unsafely-treat-insecure-origin-as-secure=' + base],
-    ['اختبار وصول جهاز المعلم إلى Veyon عند طالب', 'على جهاز المعلم في PowerShell. النتيجة TcpTestSucceeded : True تعني أن خدمة Veyon تستجيب.',
+    [gettext('اختبار وصول جهاز المعلم إلى Veyon عند طالب'), gettext('على جهاز المعلم في PowerShell. النتيجة TcpTestSucceeded : True تعني أن خدمة Veyon تستجيب.'),
      'Test-NetConnection ' + sample + ' -Port ' + vport],
-    ['اختبار وصول جهاز الطالب إلى صفحة الطالب', 'على جهاز الطالب في PowerShell. إن فشل فالمشكلة غالبًا في جدار حماية المعلم أو في العنوان.',
+    [gettext('اختبار وصول جهاز الطالب إلى صفحة الطالب'), gettext('على جهاز الطالب في PowerShell. إن فشل فالمشكلة غالبًا في جدار حماية المعلم أو في العنوان.'),
      'Test-NetConnection ' + ip + ' -Port ' + PORT],
-    ['التأكد من اسم ميزة الحظر في Veyon', 'على جهاز المعلم. يجب أن يطابق اسم قفل الشاشة المتغير VEYON_LOCK_FEATURES (الافتراضي ScreenLock).',
+    [gettext('التأكد من اسم ميزة الحظر في Veyon'), gettext('على جهاز المعلم. يجب أن يطابق اسم قفل الشاشة المتغير VEYON_LOCK_FEATURES (الافتراضي ScreenLock).'),
      'veyon-cli feature list'],
   ];
   const box = $('cmds');
@@ -326,11 +330,11 @@ function renderCmds() {
     const t = document.createElement('div'); t.className = 't'; t.textContent = title;
     const w = document.createElement('div'); w.className = 'w'; w.textContent = where;
     const pre = document.createElement('pre'); pre.textContent = text;
-    const b = document.createElement('button'); b.textContent = 'نسخ';
+    const b = document.createElement('button'); b.textContent = gettext('نسخ');
     b.addEventListener('click', async () => {
-      try { await navigator.clipboard.writeText(text); b.textContent = 'تم النسخ'; }
-      catch (e) { b.textContent = 'حدد النص وانسخه يدويًا'; }
-      setTimeout(() => { b.textContent = 'نسخ'; }, 1500);
+      try { await navigator.clipboard.writeText(text); b.textContent = gettext('تم النسخ'); }
+      catch (e) { b.textContent = gettext('حدد النص وانسخه يدويًا'); }
+      setTimeout(() => { b.textContent = gettext('نسخ'); }, 1500);
     });
     d.append(t, w, pre, b);
     box.append(d);
@@ -359,7 +363,7 @@ function renderLockFeatures() {
   const box = $('lf-list');
   box.textContent = '';
   if (!lockFeatures.discovered.length) {
-    $('lf-status').textContent = 'اضغط "اكتشاف" لجلب الميزات من Veyon.';
+    $('lf-status').textContent = gettext('اضغط "اكتشاف" لجلب الميزات من Veyon.');
     return;
   }
   const wrap = document.createElement('div');
@@ -378,16 +382,16 @@ function renderLockFeatures() {
       const res = await post('/api/setup/lock-features/', { features: checked });
       if (res.ok) {
         lockFeatures.effective = checked;
-        $('lf-status').textContent = 'تم حفظ الميزات المفعلة لهذه الجلسة.';
+        $('lf-status').textContent = gettext('تم حفظ الميزات المفعلة لهذه الجلسة.');
       } else {
-        $('lf-status').textContent = 'تعذر الحفظ: ' + (res.data.error || '');
+        $('lf-status').textContent = gettext('تعذر الحفظ: ') + (res.data.error || '');
       }
     });
     label.append(cb, document.createTextNode(f));
     wrap.append(label);
   });
   box.append(wrap);
-  $('lf-status').textContent = `المكتشفة: ${lockFeatures.discovered.length} — المفعلة: ${lockFeatures.effective.length}`;
+  $('lf-status').textContent = interpolate(gettext('المكتشفة: %(discovered)s — المفعلة: %(effective)s'), { discovered: lockFeatures.discovered.length, effective: lockFeatures.effective.length }, true);
 }
 
 function fillTestNumbers(devices) {
@@ -397,28 +401,32 @@ function fillTestNumbers(devices) {
   devices.forEach(d => {
     const o = document.createElement('option');
     o.value = d.number;
-    o.textContent = `جهاز ${d.number}${d.ip ? ' (' + d.ip + ')' : ''}`;
+    o.textContent = interpolate(gettext('جهاز %(number)s'), { number: d.number }, true) + (d.ip ? ' (' + d.ip + ')' : '');
     sel.append(o);
   });
   if (current && [...sel.options].some(o => o.value === current)) sel.value = current;
 }
 
 $('lf-discover').addEventListener('click', async () => {
-  $('lf-status').textContent = 'جارٍ الاكتشاف...';
-  const res = await fetch('/api/setup/lock-features/');
-  const data = await res.json();
-  lockFeatures = data;
-  renderLockFeatures();
+  $('lf-status').textContent = gettext('جارٍ الاكتشاف...');
+  try {
+    const res = await fetch('/api/setup/lock-features/');
+    if (!res.ok) throw new Error();
+    lockFeatures = await res.json();
+    renderLockFeatures();
+  } catch (e) {
+    $('lf-status').textContent = gettext('تعذر اكتشاف ميزات Veyon.');
+  }
 });
 
 async function testLock(action) {
   const num = $('test-num').value;
-  if (!num) { $('test-result').textContent = 'اختر جهازًا أولاً.'; return; }
-  $('test-result').textContent = 'جارٍ التنفيذ...';
+  if (!num) { $('test-result').textContent = gettext('اختر جهازًا أولاً.'); return; }
+  $('test-result').textContent = gettext('جارٍ التنفيذ...');
   const res = await post('/api/setup/test-lock/', { number: Number(num), action });
   $('test-result').textContent = res.ok
-    ? (res.data.message || 'تم بنجاح')
-    : ('فشل: ' + (res.data.error || 'خطأ غير معروف'));
+    ? (res.data.message || gettext('تم بنجاح'))
+    : (gettext('فشل: ') + (res.data.error || gettext('خطأ غير معروف')));
   $('test-result').style.color = res.ok ? '#15803d' : '#b91c1c';
   poll();
 }
@@ -426,11 +434,11 @@ $('test-lock').addEventListener('click', () => testLock('lock'));
 $('test-unlock').addEventListener('click', () => testLock('unlock'));
 
 $('sync-locks').addEventListener('click', async () => {
-  $('sync-result').textContent = 'جارٍ المزامنة...';
+  $('sync-result').textContent = gettext('جارٍ المزامنة...');
   const res = await post('/api/setup/refresh-lock-states/', {});
   $('sync-result').textContent = res.ok
-    ? `تمت مزامنة ${res.data.synced} جهاز`
-    : 'تعذرت المزامنة';
+    ? interpolate(gettext('تمت مزامنة %(count)s جهاز'), { count: res.data.synced }, true)
+    : gettext('تعذرت المزامنة');
   poll();
 });
 
@@ -455,10 +463,11 @@ async function poll() {
       lockFeatures = await lf.json();
       renderLockFeatures();
     }
-  } catch (e) {}
+  } catch (e) {
+    flash(gettext('تعذر تحديث الحالة. تحقق من اتصال الخادم.'), false);
+  }
 }
 poll();
 setInterval(poll, 3000);
 </script>
-</body>
-</html>
+{% endblock %}

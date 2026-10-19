@@ -1,8 +1,9 @@
-"""من يحق له فتح لوحة المعلم؟ جهاز المعلم فقط. أجهزة الطلاب تصل لصفحة الطالب فقط."""
+"""Who can open teacher dashboard? Teacher machine only. Student devices access student page only."""
 import time
 import socket
 
 from django.http import HttpResponseForbidden, HttpResponseRedirect
+from django.utils.translation import gettext as _
 
 LOOPBACK = {"127.0.0.1", "::1"}
 _cache = {"at": 0.0, "ips": []}
@@ -14,13 +15,13 @@ def normalize_ip(ip):
 
 
 def lan_ips():
-    """عناوين IPv4 لجهاز المعلم على الشبكة (الأرجح أولاً)."""
+    """Teacher machine IPv4 addresses on LAN (most likely first)."""
     if _cache["ips"] and time.time() - _cache["at"] < 30:
         return list(_cache["ips"])
     found = []
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-            s.connect(("10.255.255.255", 1))  # لا يرسل شيئًا، فقط يحدد واجهة الشبكة
+            s.connect(("10.255.255.255", 1))  # doesn't send, just picks interface
             found.append(s.getsockname()[0])
     except OSError:
         pass
@@ -43,8 +44,8 @@ def is_teacher_machine(ip):
 
 
 class LocalOnlyMiddleware:
-    """كل الصفحات (اللوحة، الإعدادات، الإدارة، الواجهات) متاحة من جهاز المعلم فقط،
-    عدا /student/ التي تفتحها أجهزة الطلاب."""
+    """All pages (dashboard, setup, admin, APIs) only from teacher machine,
+    except /student/ opened by student devices."""
 
     PUBLIC_PREFIXES = ("/student/",)
 
@@ -58,6 +59,6 @@ class LocalOnlyMiddleware:
             if request.path == "/":
                 return HttpResponseRedirect("/student/")
             return HttpResponseForbidden(
-                "هذه الصفحة متاحة من جهاز المعلم فقط.", content_type="text/plain; charset=utf-8"
+                _("This page is only accessible from the teacher machine."), content_type="text/plain; charset=utf-8"
             )
         return self.get_response(request)

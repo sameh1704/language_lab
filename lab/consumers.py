@@ -3,16 +3,16 @@
 الصوت نفسه لا يمر من هنا: يمر مباشرة بين المتصفحين عبر WebRTC.
 هذه القنوات تنقل فقط رسائل التفاوض (SDP) وأوامر تشغيل/إيقاف ميكروفون الطالب.
 """
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 
 from . import presence
 from .access import is_teacher_machine, normalize_ip
-from .models import Device
+from .models import Device, Classroom, AssistanceRequest
 
-TEACHER_GROUP = "teacher"
+TEACHER_GROUP_PREFIX = "teacher_"
 STUDENT_COMMANDS = {"mic_on", "mic_off"}
 
 
@@ -45,7 +45,85 @@ def _numbers(value):
 
 @database_sync_to_async
 def _device_by_ip(ip):
-    return Device.objects.filter(ip_address=ip).first()
+    return Device.objects.filter(ip_address=ip, active=True).first()
+
+
+@database_sync_to_async
+def _device_by_classroom_and_number(classroom_id, number):
+    try:
+        classroom = Classroom.objects.get(pk=classroom_id, active=True)
+        return Device.objects.get(classroom=classroom, number=number, active=True)
+    except (Classroom.DoesNotExist, Device.DoesNotExist):
+        return None
+
+
+@database_sync_to_async
+def _get_classrooms():
+    return list(Classroom.objects.filter(active=True).values("id", "name"))
+
+
+@database_sync_to_async
+def _create_assistance_request(user, device, classroom_id, request_type):
+    try:
+        classroom = Classroom.objects.get(pk=classroom_id, active=True)
+    except Classroom.DoesNotExist:
+        return None
+
+    # A device-identified student page has no logged-in ``User`` in scope (the
+    # WS is anonymous). Only a real, saved user may be stored; an
+    # ``AnonymousUser`` would raise on the non-null-safe FK, so it is dropped
+    # and the Device/Classroom become the authoritative identity.
+    if user is not None and not getattr(user, "is_authenticated", False):
+        user = None
+
+    existing = AssistanceRequest.objects.filter(
+        device=device,
+        classroom=classroom,
+        status="open",
+        request_type=request_type,
+    ).first()
+    if existing:
+        return None
+    req = AssistanceRequest.objects.create(
+        student=user,
+        device=device,
+        classroom=classroom,
+        request_type=request_type,
+        status="open",
+    )
+    return req
+
+
+@database_sync_to_async
+def _get_assistance_request(req_id):
+    try:
+        return AssistanceRequest.objects.get(pk=req_id)
+    except AssistanceRequest.DoesNotExist:
+        return None
+
+
+@database_sync_to_async
+def _update_assistance_request(req_id, new_status, user):
+    try:
+        req = AssistanceRequest.objects.get(pk=req_id)
+    except AssistanceRequest.DoesNotExist:
+        return None
+    req.status = new_status
+    req.resolved_by = user
+    from django.utils import timezone
+    req.resolved_at = timezone.now()
+    req.save(update_fields=["status", "resolved_by", "resolved_at"])
+    return req
+
+
+@database_sync_to_async
+def _get_open_requests_for_classroom(classroom_id):
+    return list(
+        AssistanceRequest.objects.filter(classroom_id=classroom_id, status="open")
+        .select_related("student", "device", "classroom")
+        .order_by("-created_at")
+        .values("id", "student__username", "device__number", "classroom__name", "request_type", "status", "created_at")
+    )
 
 
 class TeacherConsumer(AsyncJsonWebsocketConsumer):
@@ -61,42 +139,86 @@ class TeacherConsumer(AsyncJsonWebsocketConsumer):
         if not allowed:
             await self.close(code=4403)
             return
-        # نافذة معلم واحدة فقط، وإلا اختلطت إجابات الطلاب بين النوافذ
-        for channel in presence.other_teacher_channels(self.channel_name):
+
+        # Parse classroom from query string
+        query_string = self.scope.get("query_string", b"").decode()
+        query_params = parse_qs(query_string)
+        classroom_id = query_params.get("classroom", [None])[0]
+        if classroom_id:
+            try:
+                self.classroom_id = int(classroom_id)
+            except (ValueError, TypeError):
+                self.classroom_id = None
+        else:
+            # Default to first active classroom
+            classrooms = await _get_classrooms()
+            self.classroom_id = classrooms[0]["id"] if classrooms else None
+
+        self.teacher_group = f"{TEACHER_GROUP_PREFIX}{self.classroom_id}" if self.classroom_id else TEACHER_GROUP_PREFIX + "global"
+        print(f"[DEBUG] TeacherConsumer.connect: teacher_group={self.teacher_group}, classroom_id={self.classroom_id}")
+
+        # نافذة معلم واحدة فقط لكل قاعة، وإلا اختلطت إجابات الطلاب بين النوافذ
+        for channel in presence.other_teacher_channels(self.teacher_group, self.channel_name):
             await self.channel_layer.send(channel, {"type": "replaced"})
-        presence.add_teacher(self.channel_name)
-        await self.channel_layer.group_add(TEACHER_GROUP, self.channel_name)
-        await self.send_json({"type": "presence_list", "numbers": sorted(presence.online_numbers())})
+        presence.add_teacher(self.teacher_group, self.channel_name)
+        await self.channel_layer.group_add(self.teacher_group, self.channel_name)
+
+        # Send presence list for this classroom only
+        online_numbers = presence.online_numbers_for_classroom(self.classroom_id) if self.classroom_id else []
+        await self.send_json({"type": "presence_list", "numbers": sorted(online_numbers), "classroom_id": self.classroom_id})
+
+        # Send current open assistance requests for this classroom
+        if self.classroom_id:
+            reqs = await _get_open_requests_for_classroom(self.classroom_id)
+            await self.send_json({"type": "assistance_list", "requests": reqs})
 
     async def disconnect(self, code):
-        presence.remove_teacher(self.channel_name)
-        await self.channel_layer.group_discard(TEACHER_GROUP, self.channel_name)
+        presence.remove_teacher(self.teacher_group, self.channel_name)
+        await self.channel_layer.group_discard(self.teacher_group, self.channel_name)
 
     async def receive_json(self, content, **kwargs):
         kind = content.get("type")
         if kind == "signal":
             numbers = _numbers([content.get("to")])
-            if numbers:
-                await self.channel_layer.group_send(
-                    f"student_{numbers[0]}",
-                    {"type": "relay", "payload": {"type": "signal", "data": content.get("data")}},
-                )
+            if numbers and self.classroom_id:
+                device = await _device_by_classroom_and_number(self.classroom_id, numbers[0])
+                if device:
+                    await self.channel_layer.group_send(
+                        f"student_{device.device_uuid}",
+                        {"type": "relay", "payload": {"type": "signal", "data": content.get("data")}},
+                    )
         elif kind == "cmd" and content.get("cmd") in STUDENT_COMMANDS:
             for number in _numbers(content.get("to")):
-                await self.channel_layer.group_send(
-                    f"student_{number}",
-                    {"type": "relay", "payload": {"type": "cmd", "cmd": content["cmd"]}},
-                )
+                if self.classroom_id:
+                    device = await _device_by_classroom_and_number(self.classroom_id, number)
+                    if device:
+                        await self.channel_layer.group_send(
+                            f"student_{device.device_uuid}",
+                            {"type": "relay", "payload": {"type": "cmd", "cmd": content["cmd"]}},
+                        )
+        elif kind == "assistance_update":
+            req_id = content.get("id")
+            new_status = content.get("status")
+            if req_id and new_status in ("acknowledged", "resolved", "dismissed"):
+                req = await _get_assistance_request(req_id)
+                if req and req.classroom_id == self.classroom_id:
+                    updated = await _update_assistance_request(req_id, new_status, self.scope.get("user"))
+                    if updated:
+                        await self.channel_layer.group_send(
+                            self.teacher_group,
+                            {"type": "teacher_event", "payload": {"type": "assistance_update", "id": req_id, "status": new_status}},
+                        )
 
     async def teacher_event(self, event):
         await self.send_json(event["payload"])
+        print(f"[DEBUG] TeacherConsumer.teacher_event: received event={event}")
 
     async def replaced(self, event):
         await self.close(code=4409)
 
 
 class StudentConsumer(AsyncJsonWebsocketConsumer):
-    number = None
+    device = None
 
     async def connect(self):
         await self.accept()
@@ -104,39 +226,75 @@ class StudentConsumer(AsyncJsonWebsocketConsumer):
         if device is None:
             await self.close(code=4404)
             return
-        self.number = device.number
-        self.group = f"student_{self.number}"
+        self.device = device
+        self.group = f"student_{self.device.device_uuid}"
 
         # فتح الصفحة في نافذتين لنفس الجهاز: تبقى الأحدث فقط
-        for channel in presence.other_student_channels(self.number, self.channel_name):
+        for channel in presence.other_student_channels(self.device.device_uuid, self.channel_name):
             await self.channel_layer.send(channel, {"type": "replaced"})
-        presence.add_student(self.number, self.channel_name)
+        presence.add_student(self.device.device_uuid, self.channel_name, self.device.number, self.device.classroom_id)
         await self.channel_layer.group_add(self.group, self.channel_name)
-        await self.send_json({"type": "hello", "number": self.number})
-        await self._tell_teacher({"type": "presence", "number": self.number, "online": True})
+        await self.send_json({"type": "hello", "number": self.device.number, "device_uuid": str(self.device.device_uuid)})
+        await self._tell_teacher({"type": "presence", "number": self.device.number, "device_uuid": str(self.device.device_uuid), "online": True, "classroom_id": self.device.classroom_id})
 
+        print("StudentConsumer: after _tell_teacher call")
     async def disconnect(self, code):
-        if self.number is None:
+        if self.device is None:
             return
         await self.channel_layer.group_discard(self.group, self.channel_name)
-        if presence.remove_student(self.number, self.channel_name):
-            await self._tell_teacher({"type": "presence", "number": self.number, "online": False})
+        if presence.remove_student(self.device.device_uuid, self.channel_name):
+            await self._tell_teacher({"type": "presence", "number": self.device.number, "device_uuid": str(self.device.device_uuid), "online": False, "classroom_id": self.device.classroom_id})
 
     async def receive_json(self, content, **kwargs):
-        if self.number is not None and content.get("type") == "signal":
+        if self.device is not None and content.get("type") == "signal":
             await self._tell_teacher(
-                {"type": "signal", "from": self.number, "data": content.get("data")}
+                {"type": "signal", "from": self.device.number, "device_uuid": str(self.device.device_uuid), "data": content.get("data"), "classroom_id": self.device.classroom_id}
             )
-        elif self.number is not None and content.get("type") == "quality":
+        elif self.device is not None and content.get("type") == "quality":
             await self._tell_teacher(
-                {"type": "quality", "from": self.number, "data": content.get("data")}
+                {"type": "quality", "from": self.device.number, "device_uuid": str(self.device.device_uuid), "data": content.get("data")}
             )
+        elif self.device is not None and content.get("type") == "assistance_create":
+            request_type = content.get("request_type")
+            if request_type in ("hand_raise", "help"):
+                req = await _create_assistance_request(
+                    self.scope.get("user"),
+                    self.device,
+                    self.device.classroom_id,
+                    request_type,
+                )
+                if req:
+                    username = "unknown"
+                    scope_user = self.scope.get("user")
+                    if scope_user is not None and getattr(scope_user, "is_authenticated", False):
+                        username = scope_user.get_username()
+                    await self._tell_teacher({
+                        "type": "assistance_create",
+                        "id": req.pk,
+                        "student": username,
+                        "device": self.device.number,
+                        "classroom_id": self.device.classroom_id,
+                        "request_type": request_type,
+                        "status": "open",
+                        "created_at": req.created_at.isoformat(),
+                    })
+                    await self.send_json({"type": "assistance_created", "id": req.pk, "request_type": request_type})
+                else:
+                    await self.send_json({"type": "assistance_duplicate", "request_type": request_type})
 
     async def _tell_teacher(self, payload):
-        await self.channel_layer.group_send(TEACHER_GROUP, {"type": "teacher_event", "payload": payload})
+        classroom_id = payload.get("classroom_id")
+        if classroom_id:
+            teacher_group = f"{TEACHER_GROUP_PREFIX}{classroom_id}"
+        else:
+            teacher_group = TEACHER_GROUP_PREFIX + "global"
+        await self.channel_layer.group_send(teacher_group, {"type": "teacher_event", "payload": payload})
+        print(f"[DEBUG] StudentConsumer._tell_teacher: sending to group {teacher_group}, payload={payload}")
+        print(f"[DEBUG] StudentConsumer._tell_teacher: sending to group {teacher_group}, payload={payload}")
 
     async def relay(self, event):
         await self.send_json(event["payload"])
+        print(f"[DEBUG] TeacherConsumer.teacher_event: received event={event}")
 
     async def replaced(self, event):
         await self.close(code=4409)

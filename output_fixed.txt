@@ -1,0 +1,3 @@
+  File "F:\ponix lab\language_lab\test_webrtc_signaling_fixed.py", line 104
+    student_comm2 = WebsocketCommunicator(StudentConsumer.as_asgi(), "/ws/student/")
+IndentationError: unexpected indent

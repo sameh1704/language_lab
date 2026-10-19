@@ -1,0 +1,25 @@
+Created classroom id: 69
+Created device id: 162, device classroom_id: 69
+Teacher connected: True
+Traceback (most recent call last):
+  File "F:\ponix lab\language_lab\debug_test3.py", line 94, in <module>
+    asyncio.run(main())
+    ~~~~~~~~~~~^^^^^^^^
+  File "C:\Users\sameh\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 205, in run
+    return runner.run(main)
+           ~~~~~~~~~~^^^^^^
+  File "C:\Users\sameh\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 128, in run
+    return self._loop.run_until_complete(task)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "C:\Users\sameh\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py", line 720, in run_until_complete
+    return future.result()
+           ~~~~~~~~~~~~~^^
+  File "F:\ponix lab\language_lab\debug_test3.py", line 43, in main
+    msg = await teacher_comm2.receive_json_from()
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\sameh\AppData\Local\Programs\Python\Python314\Lib\site-packages\channels\testing\websocket.py", line 104, in receive_json_from
+    payload = await self.receive_from(timeout)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\sameh\AppData\Local\Programs\Python\Python314\Lib\site-packages\channels\testing\websocket.py", line 82, in receive_from
+    response["type"] == "websocket.send"
+AssertionError: Expected type 'websocket.send', but was 'websocket.close'

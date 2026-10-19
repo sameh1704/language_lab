@@ -1,0 +1,59 @@
+{% load static i18n %}
+<!doctype html>
+<html lang="{{ LANGUAGE_CODE }}" dir="{% if LANGUAGE_BIDI %}rtl{% else %}ltr{% endif %}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}{% translate "لوحة معمل اللغات" %}{% endblock %}</title>
+<link rel="stylesheet" href="{% static 'lab/css/design-system.css' %}">
+{% block style %}{% endblock %}
+</head>
+<body>
+<header class="ds-header" role="banner">
+  <div class="ds-header__branding">
+    <div class="ds-header__logo">LL</div>
+    <h1 class="ds-header__title">{% block page_title %}{% translate "لوحة معمل اللغات" %}{% endblock %}</h1>
+  </div>
+  
+  <div class="ds-header__status">
+    <div class="ds-header__status-item">
+      <span class="ds-header__status-dot ds-header__status-dot--online"></span>
+      <span>{% translate "جاهز" %}</span>
+    </div>
+    <div class="ds-header__status-item">
+      <span class="ds-header__status-dot ds-header__status-dot--offline"></span>
+      <span>{% translate "غير متصل" %}</span>
+    </div>
+  </div>
+  
+  <div class="ds-header__controls">
+    {% if classrooms %}
+    <div class="ds-header__classroom-selector">
+      <label for="classroom-select" class="sr-only">{% translate "اختر القاعة" %}</label>
+      <select id="classroom-select" class="ds-input ds-header__classroom-selector">
+        {% for c in classrooms %}
+        <option value="{{ c.id }}" {% if classroom and c.id == classroom.id %}selected{% endif %}>{{ c.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% endif %}
+    
+    <div class="ds-header__language-switcher">
+      {% include "lab/_language_switcher.html" %}
+    </div>
+    
+    <div class="ds-header__user-info">
+      <span>{{ request.user.get_username }}</span>
+      <form method="post" action="{% url 'logout' %}">
+        {% csrf_token %}
+        <button type="submit" class="ds-header__logout">{% translate "تسجيل الخروج" %}</button>
+      </form>
+    </div>
+  </div>
+</header>
+
+{% block content %}{% endblock %}
+<script src="{% url 'javascript-catalog' %}"></script>
+{% block script %}{% endblock %}
+</body>
+</html>

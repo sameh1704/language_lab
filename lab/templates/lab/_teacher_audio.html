@@ -2,27 +2,28 @@
 // ---- الصوت الحي: المعلم هو من يبدأ الاتصال بكل طالب فتح صفحة الطالب ----
 (function () {
   const $ = id => document.getElementById(id);
-  const peers = new Map();   // رقم الجهاز -> { pc, sender, audio, qualityTimer }
+  const peers = new Map();   // device_uuid -> { pc, sender, audio, qualityTimer }
   let ws = null, micStream = null, micTrack = null;
   let wsReconnectDelay = 2000;
   const WS_RECONNECT_MAX = 30000;
+  let currentClassroomId = null;
 
   const say = text => { msg.textContent = text || ''; };
   const send = obj => { if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj)); };
 
   function updateUi() {
-    $('a-state').textContent = audioInfo.on ? 'الصوت: يعمل' : 'الصوت: متوقف';
-    $('a-power').textContent = audioInfo.on ? 'إيقاف الصوت' : 'تشغيل الصوت';
+    $('a-state').textContent = audioInfo.on ? gettext('الصوت: يعمل') : gettext('الصوت: متوقف');
+    $('a-power').textContent = audioInfo.on ? gettext('إيقاف الصوت') : gettext('تشغيل الصوت');
     const parts = [];
     if (audioInfo.on) {
-      if (audioInfo.all) parts.push('البث يصل إلى ' + audioInfo.ready.size + ' جهاز');
+      if (audioInfo.all) parts.push(interpolate(gettext('البث يصل إلى %(count)s جهاز'), { count: audioInfo.ready.size }, true));
       else if (audioInfo.set.size) {
         const reach = [...audioInfo.set].filter(n => audioInfo.ready.has(n)).length;
-        parts.push('البث يصل إلى ' + reach + ' من ' + audioInfo.set.size + ' جهاز محدد');
+        parts.push(interpolate(gettext('البث يصل إلى %(ready)s من %(selected)s جهاز محدد'), { ready: reach, selected: audioInfo.set.size }, true));
       }
-      if (audioInfo.listen != null) parts.push('تستمع إلى جهاز ' + audioInfo.listen);
+      if (audioInfo.listen != null) parts.push(interpolate(gettext('تستمع إلى جهاز %(number)s'), { number: audioInfo.listen }, true));
     }
-    parts.push('صفحة الطالب مفتوحة على ' + audioInfo.ready.size + ' جهاز');
+    parts.push(interpolate(gettext('صفحة الطالب مفتوحة على %(count)s جهاز'), { count: audioInfo.ready.size }, true));
     $('a-info').textContent = parts.join(' — ');
     render();
   }
@@ -39,7 +40,6 @@
 
   // ---------------- جودة الاتصال
   function parseQuality(stats) {
-    // يرجع {rtt, loss} من نتائج getStats
     let rtt = null, loss = null;
     stats.forEach(report => {
       if (report.type === 'candidate-pair' && report.state === 'succeeded' && report.currentRoundTripTime != null) {
@@ -53,49 +53,74 @@
     return { rtt: rtt == null ? 999 : rtt, loss: loss == null ? 100 : loss };
   }
 
-  function startQualityMonitor(n, pc) {
-    stopQualityMonitor(n);
+  function startQualityMonitor(uuid, pc) {
+    stopQualityMonitor(uuid);
     const timer = setInterval(async () => {
       try {
         const stats = await pc.getStats();
         const q = parseQuality(stats);
-        if (window.__labSetQuality) window.__labSetQuality(n, q);
+        if (window.__labSetQuality) window.__labSetQuality(uuid, q);
       } catch (e) {}
     }, 3000);
-    const p = peers.get(n);
+    const p = peers.get(uuid);
     if (p) p.qualityTimer = timer;
   }
-  function stopQualityMonitor(n) {
-    const p = peers.get(n);
+  function stopQualityMonitor(uuid) {
+    const p = peers.get(uuid);
     if (p && p.qualityTimer) {
       clearInterval(p.qualityTimer);
       p.qualityTimer = null;
     }
-    if (window.__labClearQuality) window.__labClearQuality(n);
+    if (window.__labClearQuality) window.__labClearQuality(uuid);
   }
 
   // من يُرسَل إليه صوت المعلم، ومن يُسمَع صوته
-  function route(n) {
-    const p = peers.get(n);
+  // الهوية هنا رقم الجهاز دائمًا (number) لا device_uuid، لأن:
+  //   * الخادم يتحقّق من حقل to داخل قاعة المعلم: _device_by_classroom_and_number
+  //   * اللوحة والـ selected تستخدم رقم الجهاز
+  //   * presence_list يرسل أرقامًا فقط
+  // خلط رقم الجهاز مع device_uuid كان يُسقط البث والاستماع لأن المجموعتين
+  // لا تتقاطعان.
+  function route(number) {
+    const p = peers.get(number);
     if (!p) return;
-    const sendMic = micTrack && (audioInfo.all || audioInfo.set.has(n));
+    const sendMic = micTrack && (audioInfo.all || audioInfo.set.has(number));
     p.sender.replaceTrack(sendMic ? micTrack : null).catch(() => {});
-    p.audio.muted = audioInfo.listen !== n;
+    p.audio.muted = audioInfo.listen === null || audioInfo.listen !== number;
   }
-  const routeAll = () => peers.forEach((_, n) => route(n));
+  const routeAll = () => peers.forEach((_, number) => route(number));
 
-  function closePeer(n) {
-    const p = peers.get(n);
+  // حالة كل اتصال منفصلة: new / connecting / connected / failed / disconnected / closed
+  const connState = new Map();   // number -> RTCPeerConnectionState
+
+  function setPeerState(number, state) {
+    connState.set(number, state);
+    const p = peers.get(number);
+    const el = (p && p.stateEl && document.body.contains(p.stateEl)) ? p.stateEl : null;
+    if (el) {
+      el.dataset.audioState = state;
+      if (state === 'connecting' || state === 'new') el.textContent = gettext('جارٍ الاتصال');
+      else if (state === 'failed' || state === 'disconnected') el.textContent = gettext('فشل الاتصال');
+      else if (state === 'closed') el.textContent = gettext('متوقف');
+      else el.textContent = el.dataset.audioRole || '';
+    }
+    render();
+  }
+
+  function closePeer(number) {
+    const p = peers.get(number);
     if (!p) return;
-    stopQualityMonitor(n);
-    peers.delete(n);
+    stopQualityMonitor(number);
+    peers.delete(number);
+    connState.delete(number);
     try { p.pc.close(); } catch (e) {}
     p.audio.srcObject = null;
   }
 
-  async function openPeer(n) {
+  async function openPeer(number) {
     if (!audioInfo.on) return;
-    closePeer(n);
+    closePeer(number);
+    setPeerState(number, 'new');
     const pc = new RTCPeerConnection({ iceServers: [] });
     const audio = new Audio();
     audio.autoplay = true;
@@ -106,27 +131,37 @@
       audio.play().catch(() => {});
     };
     pc.onconnectionstatechange = () => {
+      setPeerState(number, pc.connectionState);
       const s = pc.connectionState;
       if (s === 'failed' || s === 'disconnected') {
-        // إعادة اتصال تلقائية عند انقطاع الشبكة
-        setTimeout(() => { if (audioInfo.on && audioInfo.ready.has(n)) openPeer(n); }, 2000);
+        // إعادة محاولة واحدة بعد مهلة قصيرة، مع بقاء الحالة مرئية للمعلم
+        setTimeout(() => {
+          if (audioInfo.on && audioInfo.ready.has(number) && peers.has(number)) {
+            openPeer(number);
+          }
+        }, 2000);
       }
     };
-    const peer = { pc, sender: tr.sender, audio, qualityTimer: null };
-    peers.set(n, peer);
-    route(n);
+    const peer = {
+      pc, sender: tr.sender, audio, qualityTimer: null, stateEl: null,
+    };
+    peers.set(number, peer);
+    route(number);
     try {
       await pc.setLocalDescription(await pc.createOffer());
+      setPeerState(number, 'connecting');
       await waitIce(pc);
-      if (peers.get(n) !== peer) return;
-      send({ type: 'signal', to: n, data: { sdp: pc.localDescription } });
-      if (audioInfo.listen === n) send({ type: 'cmd', to: [n], cmd: 'mic_on' });
-      startQualityMonitor(n, pc);
-    } catch (e) {}
+      if (peers.get(number) !== peer) return;   // أُغلق أثناء التفاوض
+      send({ type: 'signal', to: number, data: { sdp: pc.localDescription } });
+      if (audioInfo.listen === number) send({ type: 'cmd', to: [number], cmd: 'mic_on' });
+      startQualityMonitor(number, pc);
+    } catch (e) {
+      setPeerState(number, 'failed');
+    }
   }
 
-  async function onSignal(n, data) {
-    const p = peers.get(n);
+  async function onSignal(number, data) {
+    const p = peers.get(number);
     if (!p || !data || !data.sdp) return;
     try { await p.pc.setRemoteDescription(data.sdp); } catch (e) {}
   }
@@ -134,15 +169,32 @@
   // الميكروفون أولاً ثم الاتصالات: وجود إذن الميكروفون يُظهر عنوان IP الحقيقي بدل اسم mDNS
   async function powerOn() {
     if (audioInfo.on) return true;
-    if (!window.RTCPeerConnection) { say('هذا المتصفح لا يدعم WebRTC.'); return false; }
+    if (!window.RTCPeerConnection) { say(gettext('This browser does not support WebRTC.')); return false; }
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      say('الميكروفون يعمل فقط عند فتح اللوحة من localhost مثل http://localhost:8000');
+      say(gettext('Microphone works only when dashboard is opened from localhost, e.g. http://localhost:8000'));
+      return false;
+    }
+    if (!audioInfo.ready.size) {
+      // لا نفتح الميكروفون قبل وجود جهاز واحد على الأقل: بلا ذلك لا يمكن بث شيء
+      say(gettext('لا يوجد جهاز متصل بعد. افتح صفحة الطالب على الأقل على جهاز واحد.'));
       return false;
     }
     try {
       micStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
     } catch (e) {
-      say('تعذر تشغيل الميكروفون، اسمح للمتصفح باستخدامه ثم أعد المحاولة.');
+      let msg = gettext('Could not start microphone. Allow microphone access in browser and retry.');
+      if (e.name === 'NotFoundError') {
+        msg = gettext('No microphone device found. Connect a microphone or use a device with one.');
+      } else if (e.name === 'NotAllowedError') {
+        msg = gettext('Microphone permission denied. Allow access in browser settings and retry.');
+      } else if (e.name === 'NotReadableError') {
+        msg = gettext('Microphone is busy or unavailable. Close other apps using it and retry.');
+      } else if (e.name === 'OverconstrainedError') {
+        msg = gettext('Microphone constraints not satisfied. Try different settings.');
+      } else if (e.name === 'SecurityError') {
+        msg = gettext('Insecure context. Microphone requires HTTPS or localhost.');
+      }
+      say(msg);
       return false;
     }
     micTrack = micStream.getAudioTracks()[0];
@@ -161,81 +213,197 @@
     updateUi();
   }
 
+  // البث للعدة: يرسل إلى مجموعة محددة، ولا يتحوّل تلقائيًا إلى الجميع إذا كانت فارغة
   async function broadcast(all) {
     const numbers = [...selected];
-    if (!all && !numbers.length) { say('حدد جهازًا واحدًا على الأقل أولاً.'); return; }
+    if (!all && !numbers.length) { say(gettext('حدد جهازًا واحدًا على الأقل أولاً.')); return; }
     if (!(await powerOn())) return;
     audioInfo.all = all;
     audioInfo.set = new Set(all ? [] : numbers);
     routeAll(); updateUi();
   }
 
-  function setListen(n) {
-    if (audioInfo.listen != null && audioInfo.listen !== n) send({ type: 'cmd', to: [audioInfo.listen], cmd: 'mic_off' });
-    audioInfo.listen = n;
-    if (n != null) send({ type: 'cmd', to: [n], cmd: 'mic_on' });
+  function setListen(number) {
+    if (audioInfo.listen != null && audioInfo.listen !== number) send({ type: 'cmd', to: [audioInfo.listen], cmd: 'mic_off' });
+    audioInfo.listen = number;
+    if (number != null) send({ type: 'cmd', to: [number], cmd: 'mic_on' });
     routeAll(); updateUi();
   }
 
+  // إجراء جهاز واحد: يجب اختيار جهاز واحد بالضبط، ويجب أن تكون صفحة الطالب مفتوحة عليه
   function oneSelected() {
-    if (selected.size !== 1) { say('حدد جهازًا واحدًا فقط.'); return null; }
-    const n = [...selected][0];
-    if (!audioInfo.ready.has(n)) { say('هذا الجهاز لم يفتح صفحة الطالب بعد.'); return null; }
-    return n;
+    if (!selected.size) { say(gettext('حدد جهازًا واحدًا على الأقل أولاً.')); return null; }
+    if (selected.size !== 1) { say(gettext('هذا الإجراء يخصّ جهازًا واحدًا فقط: حدّد جهازًا واحدًا.')); return null; }
+    const number = [...selected][0];
+    if (!audioInfo.ready.has(number)) { say(gettext('هذا الجهاز لم يفتح صفحة الطالب بعد.')); return null; }
+    return number;
   }
 
   $('a-power').addEventListener('click', () => (audioInfo.on ? powerOff() : powerOn()));
   $('a-bcast-sel').addEventListener('click', () => broadcast(false));
   $('a-bcast-all').addEventListener('click', () => broadcast(true));
   $('a-bcast-stop').addEventListener('click', () => { audioInfo.all = false; audioInfo.set = new Set(); routeAll(); updateUi(); });
+  // الاستماع: جهاز واحد فقط، ويتحقق من أن صفحة الطالب مفتوحة عليه فعلًا
   $('a-listen').addEventListener('click', async () => {
-    const n = oneSelected(); if (n == null) return;
-    if (await powerOn()) setListen(n);
+    const number = oneSelected(); if (number == null) return;
+    if (await powerOn()) setListen(number);
   });
+  // حوار: بث ثنائي مع جهاز واحد (يسمع المعلم ويسمعه)
   $('a-talk').addEventListener('click', async () => {
-    const n = oneSelected(); if (n == null) return;
+    const number = oneSelected(); if (number == null) return;
     if (!(await powerOn())) return;
-    audioInfo.all = false; audioInfo.set = new Set([n]);
-    setListen(n);
+    audioInfo.all = false; audioInfo.set = new Set([number]);
+    setListen(number);
   });
   $('a-listen-stop').addEventListener('click', () => setListen(null));
 
-  function connectWS() {
-    ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws/teacher/');
+  function connectWS(classroomId) {
+    currentClassroomId = classroomId;
+    const baseUrl = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws/teacher/';
+    const wsUrl = classroomId ? baseUrl + '?classroom=' + classroomId : baseUrl;
+    ws = new WebSocket(wsUrl);
     wsReconnectDelay = 2000;
     ws.onmessage = ev => {
       const m = JSON.parse(ev.data);
+      // رقم الجهاز هو المفتاح الوحيد لهوية الطلاب في كتلة الصوت.
+      // device_uuid يُستخدم داخل الخادم فقط لتسمية المجموعة.
+      const numberOf = payload => {
+        const n = payload.number != null ? Number(payload.number)
+          : (payload.from != null ? Number(payload.from) : null);
+        return Number.isInteger(n) && n >= 1 ? n : null;
+      };
       if (m.type === 'presence_list') {
-        audioInfo.ready = new Set(m.numbers);
+        // الخادم يرسل أرقامًا فقط
+        audioInfo.ready = new Set();
+        (m.numbers || []).forEach(n => { const v = Number(n); if (Number.isInteger(v)) audioInfo.ready.add(v); });
         [...audioInfo.ready].forEach(openPeer);
         updateUi();
       } else if (m.type === 'presence') {
-        if (m.online) { audioInfo.ready.add(m.number); openPeer(m.number); }
-        else { audioInfo.ready.delete(m.number); closePeer(m.number); }
+        const number = numberOf(m);
+        if (number == null) return;
+        if (m.online) {
+          audioInfo.ready.add(number);
+          openPeer(number);
+        } else {
+          audioInfo.ready.delete(number);
+          closePeer(number);
+        }
         updateUi();
       } else if (m.type === 'signal') {
-        onSignal(m.from, m.data);
+        const number = numberOf(m);
+        if (number != null) onSignal(number, m.data);
       } else if (m.type === 'quality') {
-        // تقارير جودة من الطالب
-        if (window.__labSetQuality) window.__labSetQuality(m.from, m.data);
+        const number = numberOf(m);
+        if (number != null && window.__labSetQuality) window.__labSetQuality(number, m.data);
+      } else if (m.type === 'assistance_create' || m.type === 'assistance_update') {
+        if (window.__labAssistUpdate) window.__labAssistUpdate(m);
       }
     };
     ws.onclose = ev => {
       [...peers.keys()].forEach(closePeer);
       audioInfo.ready = new Set();
       updateUi();
-      if (ev.code === 4409) { say('اللوحة مفتوحة في نافذة أخرى. أغلقها أو أعد تحميل هذه الصفحة.'); return; }
-      if (ev.code === 4403) { say('تعذر فتح قناة الصوت: سجّل الدخول وافتح اللوحة من جهاز المعلم.'); return; }
-      // إعادة اتصال تلقائية مع تأخير متزايد
-      setTimeout(connectWS, wsReconnectDelay);
+      if (ev.code === 4409) { say(gettext('اللوحة مفتوحة في نافذة أخرى. أغلقها أو أعد تحميل هذه الصفحة.')); return; }
+      if (ev.code === 4403) { say(gettext('تعذر فتح قناة الصوت: سجّل الدخول وافتح اللوحة من جهاز المعلم.')); return; }
+      setTimeout(() => connectWS(currentClassroomId), wsReconnectDelay);
       wsReconnectDelay = Math.min(wsReconnectDelay * 1.5, WS_RECONNECT_MAX);
     };
   }
 
+  // دالة لإعادة الاتصال مع قاعة جديدة
+  window.__labReconnectAudio = function(classroomId) {
+    if (ws) {
+      const old = ws;
+      // إغلاق اتصالات WebRTC الخاصة بالقاعة القديمة أولاً
+      [...peers.keys()].forEach(closePeer);
+      audioInfo.ready = new Set();
+      // فصل معالِجات القناة القديمة قبل إغلاقها: بدون ذلك يستدعي onclose
+      // setTimeout(connectWS) فتفتح قناة معلم ثانية داخل نفس القاعة، ويرفض
+      // الخادم القناة الأقدم برمز 4409 فيظهر خطأ "اللوحة مفتوحة في نافذة أخرى"
+      // ويتوقف الصوت حتى إعادة تحميل الصفحة.
+      ws = null;
+      old.onmessage = null;
+      old.onclose = null;
+      old.onerror = null;
+      old.close();
+      updateUi();
+    }
+    connectWS(classroomId);
+  };
+
   // دالة لإيقاف الصوت عند إنهاء الحصة
   window.__labAudioOff = powerOff;
 
+  // تشغيل/إيقاف الصوت: نفس منطق الزر الرئيسي، متاحًا للوحة التحكم الجانبية
+  // بدل تكرار المنطق هناك.
+  window.__labAudioToggle = function () {
+    audioInfo.on ? powerOff() : powerOn();
+  };
+
+  // بث للمحدد أو للكل — يستخدم نفس منطق زر البث في شريط الأدوات
+  window.__labBroadcast = function (all) {
+    broadcast(all);
+  };
+
+  // إيقاف البث
+  window.__labStopBroadcast = function () {
+    audioInfo.all = false;
+    audioInfo.set = new Set();
+    routeAll();
+    updateUi();
+  };
+
+  // استماع لجهاز واحد — يستخدم نفس منطق زر الاستماع
+  window.__labListen = async function (number) {
+    const n = Number(number);
+    if (!Number.isInteger(n) || n < 1) return;
+    if (!(await powerOn())) return;
+    setListen(n);
+  };
+
+  // حوار مع جهاز واحد
+  window.__labTalk = async function (number) {
+    const n = Number(number);
+    if (!Number.isInteger(n) || n < 1) return;
+    if (!(await powerOn())) return;
+    audioInfo.all = false;
+    audioInfo.set = new Set([n]);
+    setListen(n);
+  };
+
+  // إيقاف الاستماع
+  window.__labStopListen = function () {
+    setListen(null);
+  };
+
+  // الحالة الحقيقية للصوت، للوحة التحكم الجانبية ولم يتمكن الاختبار من رؤيتها.
+  // الهوية في كل هذه المجموعات هي رقم الجهاز (وليس device_uuid)، لأن ذلك ما
+  // يقبله الخادم في حقل to ويتحقّق منه داخل قاعة المعلم.
+  window.__labAudioState = function () {
+    return {
+      on: audioInfo.on,
+      all: audioInfo.all,
+      broadcast: new Set(audioInfo.set),
+      listen: audioInfo.listen,
+      ready: new Set(audioInfo.ready),
+      peers: [...peers.entries()].map(([number, p]) => ({
+        number,
+        state: connState.get(number) || (p.pc ? p.pc.connectionState : 'closed'),
+        muted: p.audio ? p.audio.muted : null,
+        // المسار الصوتي المرتبط فعليًا بجهاز الاستقبال: null = لا يُسمَع الميكروفون
+        senderTrack: p.sender && p.sender.track ? p.sender.track.kind : null,
+      })),
+      micReady: !!micTrack,
+    };
+  };
+
+  // تربط بطاقة جهاز في الشبكة بحالة اتصالها الحقيقية فتتحدّث مباشرة
+  window.__labBindAudioState = function (number, element) {
+    const p = peers.get(number);
+    if (p) p.stateEl = element;
+  };
+
   updateUi();
-  connectWS();
+  connectWS(null);
 })();
 </script>

@@ -1,0 +1,49 @@
+=== WebRTC Signaling Test ===
+
+=== Test 1: Student WebSocket Connection ===
+[PASS] Student WebSocket connects 
+StudentConsumer: after _tell_teacher call
+[PASS] Student receives hello 
+[PASS] Hello contains device number 
+[PASS] Hello contains device_uuid 
+
+=== Test 2: Teacher WebSocket Connection ===
+[PASS] Teacher WebSocket connects 
+[PASS] Teacher receives presence_list 
+[FAIL] Presence list has classroom_id 
+
+=== Test 3: Student Connects After Teacher ===
+[PASS] Teacher connects 
+[PASS] Teacher gets initial presence_list 
+[PASS] Student connects after teacher 
+StudentConsumer: after _tell_teacher call
+[PASS] Student gets hello 
+Teacher received: {
+  "type": "assistance_list",
+  "requests": []
+}
+FAIL: Teacher did not receive presence message (timeout)
+Traceback (most recent call last):
+  File "F:\ponix lab\language_lab\test_webrtc_signaling.py", line 274, in <module>
+    asyncio.run(test_webrtc_signaling())
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\sameh\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 205, in run
+    return runner.run(main)
+           ~~~~~~~~~~^^^^^^
+  File "C:\Users\sameh\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 128, in run
+    return self._loop.run_until_complete(task)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "C:\Users\sameh\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py", line 720, in run_until_complete
+    return future.result()
+           ~~~~~~~~~~~~~^^
+  File "F:\ponix lab\language_lab\test_webrtc_signaling.py", line 125, in test_webrtc_signaling
+    await teacher_comm2.disconnect()
+  File "C:\Users\sameh\AppData\Local\Programs\Python\Python314\Lib\site-packages\channels\testing\websocket.py", line 114, in disconnect
+    await self.send_input({"type": "websocket.disconnect", "code": code})
+  File "C:\Users\sameh\AppData\Local\Programs\Python\Python314\Lib\site-packages\channels\testing\application.py", line 13, in send_input
+    return await super().send_input(message)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\sameh\AppData\Local\Programs\Python\Python314\Lib\site-packages\asgiref\testing.py", line 95, in send_input
+    self.future.result()
+    ~~~~~~~~~~~~~~~~~~^^
+asyncio.exceptions.CancelledError

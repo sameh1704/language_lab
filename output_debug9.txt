@@ -1,0 +1,4 @@
+  File "F:\ponix lab\language_lab\test_webrtc_signaling_fixed.py", line 32
+    device = await Device.objects.acreate(classroom=classroom, number=1, ip_address="127.0.0.1", name="Test Device", active=True)\n    print(f"[TEST] Created classroom id: {classroom.id}, device classroom_id: {device.classroom_id}")
+                                                                                                                                  ^
+SyntaxError: unexpected character after line continuation character

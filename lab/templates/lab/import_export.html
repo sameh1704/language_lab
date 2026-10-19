@@ -1,0 +1,181 @@
+{% extends "lab/base.html" %}
+{% load i18n %}
+{% block title %}{% translate "استيراد / تصدير البيانات" %}{% endblock %}
+{% block style %}
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: "Segoe UI", Tahoma, Arial, sans-serif; background: #f3f4f6; margin: 0; color: #111827; }
+  header { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 20px; background: #fff; border-bottom: 1px solid #e5e7eb; }
+  header h1 { font-size: 20px; margin: 0; }
+  .container { max-width: 900px; margin: 20px auto; padding: 20px; }
+  .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 20px; margin-bottom: 20px; }
+  .card h2 { margin: 0 0 12px; font-size: 18px; }
+  .card select, .card input, .card button { font: inherit; padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 6px; }
+  .card button { background: #2563eb; color: #fff; border-color: #2563eb; cursor: pointer; }
+  .card button:hover { background: #1d4ed8; }
+  .card button:disabled { opacity: .5; cursor: not-allowed; }
+  .links { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .links a { color: #2563eb; text-decoration: none; font-size: 14px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 12px; }
+  th, td { padding: 8px 10px; border-bottom: 1px solid #e5e7eb; text-align: start; }
+  th { background: #f9fafb; font-weight: 600; }
+  .error { color: #dc2626; }
+  .success { color: #15803d; }
+  .warn { color: #d97706; }
+  #msg { margin-bottom: 12px; min-height: 22px; }
+  #preview { display: none; }
+  #preview.open { display: block; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .actions button.secondary { background: #fff; color: #111827; border: 1px solid #d1d5db; }
+</style>
+{% endblock %}
+{% block content %}
+<header>
+  <h1>{% translate "استيراد / تصدير البيانات" %}</h1>
+  <div>
+    <a href="{% url 'dashboard' %}" style="color:#2563eb;text-decoration:none;font-size:14px;">{% translate "لوحة التحكم" %}</a>
+  </div>
+</header>
+
+<div class="container">
+  <div id="msg"></div>
+
+  <div class="card">
+    <h2>{% translate "تصدير" %}</h2>
+    <p>{% translate "تصدير البيانات الحالية كملف CSV أو XLSX." %}</p>
+    <div class="links">
+      <a href="{% url 'export_page' entity_type='students' %}?format=csv">{% translate "تصدير الطلاب (CSV)" %}</a>
+      <a href="{% url 'export_page' entity_type='students' %}?format=xlsx">{% translate "تصدير الطلاب (XLSX)" %}</a>
+      <a href="{% url 'export_page' entity_type='classes' %}?format=csv">{% translate "تصدير الفصول (CSV)" %}</a>
+      <a href="{% url 'export_page' entity_type='classes' %}?format=xlsx">{% translate "تصدير الفصول (XLSX)" %}</a>
+      <a href="{% url 'export_page' entity_type='enrollments' %}?format=csv">{% translate "تصدير التسجيلات (CSV)" %}</a>
+      <a href="{% url 'export_page' entity_type='enrollments' %}?format=xlsx">{% translate "تصدير التسجيلات (XLSX)" %}</a>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>{% translate "استيراد" %}</h2>
+    <p>{% translate "اختر نوع البيانات، ارفع الملف، ثم راجع وأكد الاستيراد." %}</p>
+    <form id="import-form" enctype="multipart/form-data">
+      <select id="entity-type" required>
+        <option value="">{% translate "اختر نوع البيانات..." %}</option>
+        {% for value, label in entities %}
+          <option value="{{ value }}">{{ label }}</option>
+        {% endfor %}
+      </select>
+      <input type="file" id="import-file" accept=".csv,.xlsx,.xls" required style="margin-top:8px;">
+      <button type="submit" style="margin-top:8px;">{% translate "رفع ومعاينة" %}</button>
+    </form>
+  </div>
+
+  <div id="preview" class="card">
+    <h2>{% translate "معاينة الاستيراد" %}</h2>
+    <div id="preview-content"></div>
+    <div class="actions">
+      <button id="btn-confirm" onclick="confirmImport()">{% translate "تأكيد الاستيراد" %}</button>
+      <button class="secondary" onclick="document.getElementById('preview').classList.remove('open')">{% translate "إلغاء" %}</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block script %}
+<script>
+let previewData = null;
+
+function showMsg(text, cls) {
+  const el = document.getElementById('msg');
+  el.textContent = text;
+  el.className = cls || '';
+}
+
+document.getElementById('import-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const entityType = document.getElementById('entity-type').value;
+  const fileInput = document.getElementById('import-file');
+  if (!entityType || !fileInput.files[0]) {
+    showMsg('{% translate "يرجى اختيار نوع البيانات والملف." %}', 'error');
+    return;
+  }
+
+  const form = new FormData();
+  form.append('file', fileInput.files[0]);
+  form.append('entity_type', entityType);
+
+  const res = await fetch("{% url 'import_upload' %}", {
+    method: 'POST',
+    headers: {'X-CSRFToken': '{{ csrf_token }}'},
+    body: form,
+    credentials: 'same-origin',
+  });
+  const json = await res.json();
+  if (json.error) {
+    showMsg(json.error, 'error');
+    return;
+  }
+
+  previewData = json;
+  const content = document.getElementById('preview-content');
+  let html = `<p><b>{% translate "الإجمالي" %}:</b> ${json.total_rows} &middot; <b>{% translate "صالح" %}:</b> ${json.valid_count} &middot; <b>{% translate "أخطاء" %}:</b> ${json.error_count}</p>`;
+
+  if (json.errors && json.errors.length) {
+    html += `<h3 class="error">{% translate "أخطاء" %}</h3><table><tr><th>{% translate "صف" %}</th><th>{% translate "خطأ" %}</th></tr>`;
+    for (const err of json.errors) {
+      html += `<tr><td>${err.row}</td><td>${err.errors.join(', ')}</td></tr>`;
+    }
+    html += `</table>`;
+  }
+
+  if (json.sample && json.sample.length) {
+    html += `<h3>{% translate "عينة" %}</h3><table><tr>`;
+    const keys = Object.keys(json.sample[0]);
+    for (const key of keys) html += `<th>${key}</th>`;
+    html += `</tr>`;
+    for (const row of json.sample) {
+      html += `<tr>`;
+      for (const key of keys) html += `<td>${row[key] || ''}</td>`;
+      html += `</tr>`;
+    }
+    html += `</table>`;
+  }
+
+  html += `
+    <div class="actions">
+      <label>{% translate "وضع المكررات:" %}:
+        <select id="duplicate-mode">
+          {% for value, label in duplicate_modes %}
+            <option value="{{ value }}">{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+    </div>
+  `;
+
+  content.innerHTML = html;
+  document.getElementById('preview').classList.add('open');
+});
+
+async function confirmImport() {
+  if (!previewData) return;
+  const duplicateMode = document.getElementById('duplicate-mode').value;
+  const body = {
+    entity_type: previewData.entity_type,
+    clean_rows: previewData.sample || [],
+    duplicate_mode: duplicateMode,
+  };
+  const res = await fetch("{% url 'import_confirm' %}", {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+    body: JSON.stringify(body),
+    credentials: 'same-origin',
+  });
+  const json = await res.json();
+  if (json.error) {
+    showMsg(json.error + (json.rolled_back ? ' ({% translate "تم التراجع" %})' : ''), 'error');
+    return;
+  }
+  const report = json.report;
+  showMsg(`{% translate "تم الاستيراد" %}: ${report.created} {% translate "منشأ" %}, ${report.updated} {% translate "محدث" %}, ${report.skipped} {% translate "متخطى" %}, ${report.errors.length} {% translate "أخطاء" %}`, 'success');
+  document.getElementById('preview').classList.remove('open');
+}
+</script>
+{% endblock %}

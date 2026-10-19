@@ -1,9 +1,7 @@
-<!doctype html>
-<html lang="ar" dir="rtl">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>صفحة الطالب</title>
+{% extends "lab/base.html" %}
+{% load i18n %}
+{% block title %}{% translate "صفحة الطالب" %}{% endblock %}
+{% block style %}
 <style>
   * { box-sizing: border-box; }
   body { font-family: "Segoe UI", Tahoma, Arial, sans-serif; background: #0f172a; color: #e2e8f0; margin: 0;
@@ -16,48 +14,65 @@
   .chip { background: #1e293b; border: 1px solid #334155; padding: 6px 12px; border-radius: 999px; font-size: 14px; }
   .chip.ok { border-color: #16a34a; color: #86efac; }
   .chip.bad { border-color: #dc2626; color: #fca5a5; }
-  .live { margin-top: 20px; background: #7f1d1d; color: #fecaca; padding: 10px 16px; border-radius: 10px; font-size: 16px; }
+  .live { margin-block-start: 20px; background: #7f1d1d; color: #fecaca; padding: 10px 16px; border-radius: 10px; font-size: 16px; }
   button, select { font: inherit; font-size: 18px; padding: 10px 18px; border-radius: 10px; border: 0; margin-top: 16px; }
   button { background: #2563eb; color: #fff; cursor: pointer; }
   select { background: #1e293b; color: #e2e8f0; border: 1px solid #334155; }
   h1 { font-size: 26px; }
   p { color: #cbd5e1; line-height: 1.8; }
   .err { color: #fca5a5; min-height: 24px; margin-top: 12px; }
+  .language-switcher { position: fixed; inset-block-start: 12px; inset-inline-end: 16px; }
   code { direction: ltr; unicode-bidi: embed; background: #1e293b; padding: 2px 8px; border-radius: 6px; }
 </style>
-</head>
-<body>
+{% endblock %}
+{% block content %}
+{% include "lab/_language_switcher.html" %}
 <main>
 {% if device %}
-  <div class="label">رقم جهازك</div>
+  <div class="label">{% translate "رقم جهازك" %}</div>
   <div class="num">{{ device.number }}</div>
-  <div class="state" id="state">جارٍ الاتصال بجهاز المعلم...</div>
+  <div class="state" id="state">{% translate "جارٍ الاتصال بجهاز المعلم..." %}</div>
   <div class="chips">
-    <span class="chip" id="chip-link">الاتصال: ...</span>
-    <span class="chip" id="chip-audio">الصوت: ...</span>
-    <span class="chip" id="chip-mic">الميكروفون: ...</span>
+    <span class="chip" id="chip-link">{% translate "الاتصال:" %} ...</span>
+    <span class="chip" id="chip-audio">{% translate "الصوت:" %} ...</span>
+    <span class="chip" id="chip-mic">{% translate "الميكروفون:" %} ...</span>
+    <span class="chip" id="chip-assist">{% translate "المساعدة:" %} {% translate "لا يوجد طلب" %}</span>
   </div>
-  <div class="live" id="live" hidden>المعلم يستمع إليك الآن</div>
-  <button id="enable" hidden>اضغط لتفعيل الصوت</button>
+  <div class="live" id="live" hidden>{% translate "المعلم يستمع إليك الآن" %}</div>
+  <button id="enable" hidden>{% translate "اضغط لتفعيل الصوت" %}</button>
+  <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+    <button id="btn-hand">{% translate "✋ ارفع يدك" %}</button>
+    <button id="btn-help" class="danger">{% translate "🆘 أحتاج مساعدة" %}</button>
+    <button id="btn-cancel" style="background:#64748b; display:none;">{% translate "إلغاء الطلب" %}</button>
+  </div>
+  <div class="err" id="err-assist"></div>
   <audio id="remote" autoplay playsinline></audio>
 {% elif pairing %}
-  <h1>ربط هذا الجهاز</h1>
-  <p>اختر رقم هذا الجهاز كما هو مكتوب عليه، وسيُسجَّل عنوانه تلقائيًا.</p>
+  <h1>{% translate "ربط هذا الجهاز" %}</h1>
+  <p>{% translate "اختر رقم هذا الجهاز كما هو مكتوب عليه، وسيُسجَّل عنوانه تلقائيًا." %}</p>
   <select id="num">
-    {% for n in numbers %}<option value="{{ n }}">جهاز {{ n }}</option>{% endfor %}
+    {% for n in numbers %}<option value="{{ n }}">{% blocktrans with number=n %}جهاز {{ number }}{% endblocktrans %}</option>{% endfor %}
   </select>
   <br>
-  <button id="pair">ربط</button>
+  <button id="pair">{% translate "ربط" %}</button>
   <div class="err" id="err"></div>
 {% else %}
-  <h1>هذا الجهاز غير مسجل</h1>
-  <p>عنوان الجهاز: <code>{{ ip }}</code><br>اطلب من المعلم تفعيل وضع الربط من صفحة الإعدادات، وستتحدث هذه الصفحة تلقائيًا.</p>
+  <h1>{% translate "هذا الجهاز غير مسجل" %}</h1>
+  <p>{% translate "عنوان الجهاز:" %} <code>{{ ip }}</code><br>{% translate "اطلب من المعلم تفعيل وضع الربط من صفحة الإعدادات، وستتحدث هذه الصفحة تلقائيًا." %}</p>
 {% endif %}
 </main>
-
+{% endblock %}
+{% block script %}
 {% if device %}
 <script>
 const el = id => document.getElementById(id);
+
+// CSRF: كان هذا المساعد معرّفًا في فرع الربط فقط، فكان إرسال طلب المساعدة
+// يفشل بـ «تعذر إرسال الطلب» قبل أن تبدأ أي طلب شبكة.
+function csrf() {
+  const m = document.cookie.match(/(?:^|; )csrftoken=([^;]+)/);
+  return m ? decodeURIComponent(m[1]) : '';
+}
 const audioEl = el('remote');
 const WS_URL = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws/student/';
 let ws = null, pc = null, sender = null, micTrack = null, wantMic = false;
@@ -68,17 +83,71 @@ function chip(id, text, ok) {
   c.className = 'chip' + (ok === true ? ' ok' : ok === false ? ' bad' : '');
 }
 
+// JavaScript-based error messages (no Django gettext dependency)
+const micMessages = {
+  en: {
+    unavailable: 'Microphone: unavailable (check launch shortcut)',
+    ready: 'Microphone: ready',
+    not_allowed: 'Microphone: permission denied',
+    not_found: 'Microphone: no input device found',
+    not_readable: 'Microphone: device busy or unavailable',
+    overconstrained: 'Microphone: constraints not satisfied',
+    security: 'Microphone: insecure context (use localhost)',
+  },
+  ar: {
+    unavailable: 'الميكروفون: غير متاح (راجع اختصار التشغيل)',
+    ready: 'الميكروفون: جاهز',
+    not_allowed: 'الميكروفون: غير مسموح',
+    not_found: 'الميكروفون: لم يتم العثور على جهاز إدخال',
+    not_readable: 'الميكروفون: الجهاز مشغول أو غير متاح',
+    overconstrained: 'الميكروفون: القيود غير مستوفية',
+    security: 'الميكروفون: سياق غير آمن (استخدم localhost)',
+  },
+  fr: {
+    unavailable: 'Microphone : non disponible (vérifiez le raccourci de lancement)',
+    ready: 'Microphone : prêt',
+    not_allowed: 'Microphone : permission refusée',
+    not_found: 'Microphone : aucun périphérique d\'entrée trouvé',
+    not_readable: 'Microphone : périphérique occupé ou indisponible',
+    overconstrained: 'Microphone : contraintes non satisfaites',
+    security: 'Microphone : contexte non sécurisé (utilisez localhost)',
+  },
+};
+
+function getMicMsg(key) {
+  const lang = document.documentElement.lang || 'en';
+  return (micMessages[lang] || micMessages.en)[key] || micMessages.en[key];
+}
+
+function chip(id, text, ok) {
+  const c = el(id);
+  c.textContent = text;
+  c.className = 'chip' + (ok === true ? ' ok' : ok === false ? ' bad' : '');
+}
+
 async function initMic() {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    chip('chip-mic', 'الميكروفون: غير متاح (راجع اختصار التشغيل)', false);
+    chip('chip-mic', getMicMsg('unavailable'), false);
     return;
   }
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
     micTrack = stream.getAudioTracks()[0];
-    chip('chip-mic', 'الميكروفون: جاهز', true);
+    chip('chip-mic', getMicMsg('ready'), true);
   } catch (e) {
-    chip('chip-mic', 'الميكروفون: غير مسموح', false);
+    let msg = getMicMsg('not_allowed');
+    if (e.name === 'NotFoundError') {
+      msg = getMicMsg('not_found');
+    } else if (e.name === 'NotAllowedError') {
+      msg = getMicMsg('not_allowed');
+    } else if (e.name === 'NotReadableError') {
+      msg = getMicMsg('not_readable');
+    } else if (e.name === 'OverconstrainedError') {
+      msg = getMicMsg('overconstrained');
+    } else if (e.name === 'SecurityError') {
+      msg = getMicMsg('security');
+    }
+    chip('chip-mic', msg, false);
   }
 }
 
@@ -147,7 +216,7 @@ async function onOffer(data) {
   p.onconnectionstatechange = () => {
     const s = p.connectionState;
     chip('chip-audio',
-      s === 'connected' ? 'الصوت: متصل' : s === 'failed' ? 'الصوت: فشل الربط' : 'الصوت: جارٍ الربط',
+      s === 'connected' ? gettext('الصوت: متصل') : s === 'failed' ? gettext('الصوت: فشل الربط') : gettext('الصوت: جارٍ الربط'),
       s === 'connected' ? true : s === 'failed' ? false : null);
     if (s === 'failed' || s === 'disconnected') {
       // إعادة اتصال تلقائية عند انقطاع الشبكة
@@ -168,13 +237,17 @@ async function onOffer(data) {
 function connect() {
   ws = new WebSocket(WS_URL);
   ws.onopen = () => {
-    chip('chip-link', 'الاتصال: متصل بالمعلم', true);
-    el('state').textContent = 'جهازك متصل بجهاز المعلم';
+    chip('chip-link', gettext('الاتصال: متصل بالمعلم'), true);
+    el('state').textContent = gettext('جهازك متصل بجهاز المعلم');
   };
   ws.onmessage = async ev => {
     const m = JSON.parse(ev.data);
-    if (m.type === 'signal') {
-      try { await onOffer(m.data); } catch (e) { chip('chip-audio', 'الصوت: خطأ', false); }
+    if (m.type === 'hello') {
+      // رسالة الترحيب هي المصدر الموثوق لهوية الجهاز: UUID يولّده الخادم
+      // بعد أن تحقّق من عنوان الجهاز المسجّل، ولا يمكن تزويره من العميل.
+      if (m.device_uuid) deviceUuid = m.device_uuid;
+    } else if (m.type === 'signal') {
+      try { await onOffer(m.data); } catch (e) { chip('chip-audio', gettext('الصوت: خطأ'), false); }
     } else if (m.type === 'cmd') {
       wantMic = m.cmd === 'mic_on';
       applyMic();
@@ -184,21 +257,97 @@ function connect() {
     closePc();
     wantMic = false;
     el('live').hidden = true;
-    chip('chip-audio', 'الصوت: —', null);
+    chip('chip-audio', gettext('الصوت: —'), null);
     if (ev.code === 4409) {
-      chip('chip-link', 'الاتصال: صفحة أخرى مفتوحة', false);
-      el('state').textContent = 'هذه الصفحة مفتوحة في نافذة أخرى على نفس الجهاز';
+      chip('chip-link', gettext('الاتصال: صفحة أخرى مفتوحة'), false);
+      el('state').textContent = gettext('هذه الصفحة مفتوحة في نافذة أخرى على نفس الجهاز');
       return;
     }
     if (ev.code === 4404) { setTimeout(() => location.reload(), 5000); return; }
-    chip('chip-link', 'الاتصال: منقطع، تتم إعادة المحاولة', false);
-    el('state').textContent = 'انقطع الاتصال بجهاز المعلم...';
+    chip('chip-link', gettext('الاتصال: منقطع، تتم إعادة المحاولة'), false);
+    el('state').textContent = gettext('انقطع الاتصال بجهاز المعلم...');
     setTimeout(connect, 2000);
   };
 }
 
 el('enable').addEventListener('click', () => {
   audioEl.play().then(() => { el('enable').hidden = true; }).catch(() => {});
+});
+
+// ---------------- مساعدة
+// هوية هذا الجهاز: UUID يولّده الخادم ويسلّمه لهذه الصفحة عبر جلسة المتصفح
+// وعبر رسالة hello على WebSocket. لا يُشتق من رقم الجهاز ولا من عنوان IP،
+// ولا يرسله المستخدم من عند himself — يُقرأ من الجلسة/الرسالة فقط.
+let deviceUuid = {% if device %}'{{ device.device_uuid }}'{% else %}null{% endif %};
+let currentRequest = null;
+
+function updateAssistChip() {
+  const chip = el('chip-assist');
+  const cancel = el('btn-cancel');
+  const hand = el('btn-hand');
+  const help = el('btn-help');
+  if (!currentRequest) {
+    chip.textContent = gettext('المساعدة: لا يوجد طلب');
+    chip.className = 'chip';
+    cancel.style.display = 'none';
+    hand.disabled = false;
+    help.disabled = false;
+  } else if (currentRequest.status === 'open') {
+    const label = currentRequest.request_type === 'hand_raise' ? gettext('يد مرفوعة') : gettext('طلب مساعدة');
+    chip.textContent = gettext('المساعدة: ') + label;
+    chip.className = 'chip ok';
+    cancel.style.display = 'inline-block';
+    // لا نرسل طلبًا ثانيًا مفتوحًا: نفس القاعدة التي يفرضها الخادم،
+    // فيمنع رسالة خطأ محيّرة بدون الحاجة لنص جديد غير مترجم.
+    hand.disabled = true;
+    help.disabled = true;
+  } else {
+    const label = currentRequest.status === 'acknowledged' ? gettext('تم التأكيد') :
+                  currentRequest.status === 'resolved' ? gettext('تم الحل') : gettext('تم الإلغاء');
+    chip.textContent = gettext('المساعدة: ') + label;
+    chip.className = 'chip bad';
+    cancel.style.display = 'none';
+    hand.disabled = false;
+    help.disabled = false;
+    setTimeout(() => { currentRequest = null; updateAssistChip(); }, 3000);
+  }
+}
+
+async function sendAssist(request_type) {
+  const err = el('err-assist');
+  err.textContent = '';
+  if (!deviceUuid) {
+    err.textContent = gettext('هذا الجهاز غير مسجل، لا يمكن إرسال طلب مساعدة.');
+    return;
+  }
+  try {
+    const r = await fetch('/api/assistance/create/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
+      body: JSON.stringify({ request_type, device_uuid: deviceUuid }),
+    });
+    const data = await r.json().catch(() => ({}));
+    if (r.ok) {
+      currentRequest = { id: data.id, request_type, status: 'open' };
+      updateAssistChip();
+    } else {
+      // نعرض رسالة الخادم كما هي: تغطي حالتي "طلب مكرر" و"نوع غير صالح"
+      // بلغات الواجهة بدون مطابقة نصية هشّة على نص إنجليزي.
+      err.textContent = data.error || gettext('تعذر إرسال الطلب');
+    }
+  } catch (e) {
+    err.textContent = gettext('تعذر إرسال الطلب');
+  }
+}
+
+el('btn-hand').addEventListener('click', () => sendAssist('hand_raise'));
+el('btn-help').addEventListener('click', () => sendAssist('help'));
+el('btn-cancel').addEventListener('click', async () => {
+  if (!currentRequest) return;
+  // Optimistic local dismiss
+  const prev = currentRequest;
+  currentRequest = { ...prev, status: 'dismissed' };
+  updateAssistChip();
 });
 
 // الميكروفون أولاً: وجود إذن الميكروفون يجعل المتصفح يعرض عنوان IP الحقيقي في الاتصال
@@ -219,11 +368,10 @@ document.getElementById('pair').addEventListener('click', async () => {
     body: JSON.stringify({ number: document.getElementById('num').value }),
   });
   const data = await r.json().catch(() => ({}));
-  if (r.ok) location.reload(); else err.textContent = data.error || 'تعذر الربط';
+  if (r.ok) location.reload(); else err.textContent = data.error || gettext('تعذر الربط');
 });
 </script>
 {% else %}
 <script>setTimeout(() => location.reload(), 5000);</script>
 {% endif %}
-</body>
-</html>
+{% endblock %}

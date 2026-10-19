@@ -1,149 +1,1160 @@
-<!doctype html>
-<html lang="ar" dir="rtl">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>لوحة معمل اللغات</title>
+{% extends "lab/base.html" %}
+{% load i18n %}
+{% block title %}{% translate "لوحة تحكم معمل اللغات" %}{% endblock %}
+{% block page_title %}{% translate "لوحة تحكم معمل اللغات" %}{% endblock %}
+{% block style %}
 <style>
-  * { box-sizing: border-box; }
-  body { font-family: "Segoe UI", Tahoma, Arial, sans-serif; background: #f3f4f6; margin: 0; color: #111827; }
-  header { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;
-           padding: 12px 20px; background: #fff; border-bottom: 1px solid #e5e7eb; }
-  header h1 { font-size: 20px; margin: 0; }
-  header form { margin: 0; }
-  .link { background: none; border: 0; color: #2563eb; cursor: pointer; font: inherit; }
-  .sim { background: #fef3c7; color: #92400e; padding: 8px 20px; font-size: 14px; text-align: center; }
-  .mode-badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
-  .mode-badge.sim { background: #fef3c7; color: #92400e; }
-  .mode-badge.live { background: #dcfce7; color: #15803d; }
+  /* Page-specific dashboard styles that enhance the design system foundation */
 
-  .bar { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between;
-         padding: 12px 20px; }
-  .stats { display: flex; flex-wrap: wrap; gap: 8px; font-size: 14px; }
-  .chip { display: inline-flex; align-items: center; gap: 6px; background: #fff; border: 1px solid #e5e7eb;
-          padding: 4px 10px; border-radius: 999px; }
-  .dot { width: 12px; height: 12px; border-radius: 4px; display: inline-block; }
-  .dot.online { background: #22c55e; }
-  .dot.offline { background: #e5e7eb; border: 1px solid #d1d5db; }
-  .dot.absent { background: repeating-linear-gradient(45deg, #f3f4f6, #f3f4f6 3px, #d1d5db 3px, #d1d5db 6px); }
-  .dot.blocked { background: #fff; border: 2px solid #dc2626; }
-  .dot.selected { background: #fff; border: 2px solid #2563eb; }
+  /* Modern top application header enhancements */
+  .ds-header {
+    background: var(--color-surface);
+    border-bottom: var(--border);
+  }
 
-  .actions { display: flex; flex-wrap: wrap; gap: 8px; }
-  .actions button { font: inherit; font-size: 14px; padding: 8px 14px; border-radius: 8px; cursor: pointer;
-                    border: 1px solid #d1d5db; background: #fff; }
-  .actions button:hover { background: #f9fafb; }
-  .actions button:disabled { opacity: .5; cursor: not-allowed; }
-  .actions .danger { background: #dc2626; border-color: #dc2626; color: #fff; }
-  .actions .danger:hover { background: #b91c1c; }
-  .actions .ok { background: #16a34a; border-color: #16a34a; color: #fff; }
-  .actions .ok:hover { background: #15803d; }
-  .actions .primary { background: #2563eb; border-color: #2563eb; color: #fff; }
-  .actions .primary:hover { background: #1d4ed8; }
-  .sep { width: 1px; background: #d1d5db; margin: 0 4px; }
+  .ds-header__branding {
+    gap: var(--space-4);
+  }
 
-  #msg { margin: 0 20px; min-height: 22px; font-size: 14px; color: #374151; }
-  #session-report { margin: 0 20px 10px; padding: 12px 16px; background: #fff; border: 1px solid #e5e7eb;
-                    border-radius: 10px; font-size: 14px; display: none; }
-  #session-report h3 { margin: 0 0 8px; font-size: 15px; }
-  #session-report .row { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 6px; }
-  #session-report .stat { background: #f8fafc; padding: 4px 12px; border-radius: 6px; }
-  #session-report table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
-  #session-report th, #session-report td { padding: 4px 8px; border-bottom: 1px solid #f1f5f9; text-align: start; }
-  #session-report .good { color: #15803d; }
-  #session-report .bad { color: #b91c1c; }
+  .ds-header__logo {
+    width: 40px;
+    height: 40px;
+    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-light));
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
+  }
 
-  #grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 10px; padding: 12px 20px 28px; }
-  @media (max-width: 1000px) { #grid { grid-template-columns: repeat(5, 1fr); } }
-  @media (max-width: 600px)  { #grid { grid-template-columns: repeat(3, 1fr); } }
+  .ds-header__title {
+    font-size: var(--text-2xl);
+    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
 
-  .tile { position: relative; aspect-ratio: 1.3; border-radius: 12px; border: 3px solid transparent;
-          display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
-          cursor: pointer; font: inherit; user-select: none; transition: transform .08s; }
-  .tile:active { transform: scale(.97); }
-  .tile .num { font-size: 28px; font-weight: 700; line-height: 1; }
-  .tile .st { font-size: 12px; }
-  .tile.online  { background: #22c55e; color: #fff; }
-  .tile.offline { background: #e5e7eb; color: #9ca3af; opacity: .65; }
-  .tile.absent  { background: repeating-linear-gradient(45deg, #f3f4f6, #f3f4f6 8px, #e5e7eb 8px, #e5e7eb 16px);
-                  color: #6b7280; border: 2px dashed #cbd5e1; }
-  .tile.blocked { box-shadow: inset 0 0 0 3px #dc2626; }
-  .tile.selected { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.35); }
-  .tile.blocked.selected { box-shadow: inset 0 0 0 3px #dc2626, 0 0 0 3px rgba(37,99,235,.35); }
-  .tile .au { font-size: 11px; opacity: .9; }
-  a.link { text-decoration: none; }
-  .tile .lock { position: absolute; top: 6px; inset-inline-start: 6px; background: #dc2626; color: #fff;
-                font-size: 11px; padding: 1px 7px; border-radius: 999px; }
-  .tile .q { position: absolute; top: 6px; inset-inline-end: 6px; font-size: 11px; padding: 1px 6px;
-             border-radius: 999px; background: rgba(0,0,0,.25); color: #fff; }
-  .tile .q.good { background: #15803d; }
-  .tile .q.warn { background: #d97706; }
-  .tile .q.bad { background: #dc2626; }
+  .ds-header__status {
+    gap: var(--space-3);
+  }
+
+  .ds-header__status-item {
+    background: var(--color-surface-subtle);
+    padding: var(--space-3) var(--space-5);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  }
+
+  .ds-header__controls {
+    gap: var(--space-5);
+  }
+
+  /* Enhanced action toolbar with modern visual hierarchy */
+  .ds-toolbar {
+    background: var(--color-surface);
+    border-bottom: var(--border-strong);
+    padding: var(--space-6) var(--space-9);
+  }
+
+  .ds-toolbar__section {
+    background: var(--color-surface-subtle);
+    padding: var(--space-5);
+    border-radius: var(--radius-xl);
+    border: var(--border);
+  }
+
+  .ds-toolbar__section-title {
+    color: var(--color-primary);
+    font-weight: var(--weight-bold);
+    margin-bottom: var(--space-4);
+    padding-bottom: var(--space-2);
+    border-bottom: 2px solid var(--color-primary);
+  }
+
+  .ds-toolbar__actions {
+    gap: var(--space-4);
+  }
+
+  .ds-toolbar__action-btn {
+    min-height: 48px;
+    padding: var(--space-4) var(--space-6);
+    border-radius: var(--radius-lg);
+    font-weight: var(--weight-semibold);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  }
+
+  .ds-toolbar__action-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
+  }
+
+  .ds-toolbar__action-btn:active {
+    transform: translateY(0);
+  }
+
+  .ds-toolbar__action-btn--primary {
+    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
+    border: none;
+  }
+
+  .ds-toolbar__action-btn--success {
+    background: linear-gradient(135deg, var(--color-success), var(--color-success-dark));
+    border: none;
+  }
+
+  .ds-toolbar__action-btn--danger {
+    background: linear-gradient(135deg, var(--color-danger), var(--color-danger-dark));
+    border: none;
+  }
+
+  /* Enhanced device grid with modern card design */
+  .ds-device-grid {
+    gap: var(--space-8);
+    margin-top: var(--space-12);
+  }
+
+  /* Enhanced device card with modern visual hierarchy */
+  .ds-device-card {
+    background: var(--color-surface);
+    border-radius: var(--radius-2xl);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    border: 1px solid var(--color-border-subtle);
+    transition: all var(--transition-base);
+  }
+
+  .ds-device-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 40px rgba(37, 99, 235, 0.15);
+    border-color: var(--color-primary);
+  }
+
+  .ds-device-card--selected {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px var(--color-primary-ring);
+    background: linear-gradient(to bottom, var(--color-surface), var(--color-primary-soft));
+  }
+
+  .ds-device-card__number {
+    font-size: var(--text-4xl);
+    font-weight: var(--weight-extrabold);
+    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .ds-device-card__status {
+    padding: var(--space-3) var(--space-5);
+    border-radius: var(--radius-lg);
+    font-weight: var(--weight-semibold);
+  }
+
+  .ds-device-card__status--online {
+    background: linear-gradient(135deg, var(--color-success-soft), var(--color-success-light));
+    color: var(--color-success);
+    border: 1px solid var(--color-success-border);
+  }
+
+  .ds-device-card__status--offline {
+    background: var(--color-offline);
+    color: var(--color-text-muted);
+    border: 1px solid var(--color-offline-border);
+  }
+
+  .ds-device-card__meta {
+    background: var(--color-surface-subtle);
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-lg);
+  }
+
+  /* ==========================================================================
+     Contextual control panel — desktop sidebar, mobile drawer
+     ========================================================================== */
+  .ds-panel-toggle {
+    position: fixed;
+    inset-block-start: 50%;
+    inset-inline-end: 0;
+    z-index: var(--z-panel);
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-4) var(--space-3);
+    border: var(--border-strong);
+    border-radius: var(--radius-lg);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font: inherit;
+    font-weight: var(--weight-semibold);
+    cursor: pointer;
+    box-shadow: 0 0 12px rgba(0, 0, 0, 0.15);
+  }
+  .ds-panel-toggle:hover { background: var(--color-hover-bg); }
+
+  /* Above 1200px the panel is persistently open, so the toggle would sit
+     underneath it — hide it there and keep it for the drawer only. */
+  @media (min-width: 1201px) {
+    .ds-panel-toggle {
+      display: none;
+    }
+  }
+
+  .ds-panel-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: var(--z-panel);
+    background: rgba(15, 23, 42, 0.5);
+    border: none;
+    padding: 0;
+  }
+
+  .ds-control-panel {
+    position: fixed;
+    inset-block: 0;
+    inset-inline-end: 0;
+    z-index: var(--z-panel);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-5);
+    width: 360px;
+    padding: var(--space-5);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    background: var(--color-surface);
+    border-block: var(--border-strong);
+    border-inline-start: var(--border-strong);
+    border-inline-end: none;
+    box-shadow: 0 0 32px rgba(0, 0, 0, 0.12);
+  }
+
+  .ds-control-panel__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    padding: var(--space-4) var(--space-5);
+    border-radius: var(--radius-xl);
+    background: linear-gradient(135deg, var(--color-primary-soft), var(--color-surface));
+    border-bottom: var(--border-strong);
+  }
+  .ds-control-panel__header h2 {
+    margin: 0;
+    font-size: var(--text-md);
+    font-weight: var(--weight-bold);
+  }
+  .ds-control-panel__close {
+    border: none;
+    background: none;
+    font-size: var(--text-2xl);
+    line-height: 1;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-md);
+  }
+  .ds-control-panel__close:hover { background: var(--color-hover-bg); color: var(--color-text); }
+
+  .ds-control-panel__card {
+    padding: var(--space-5);
+    background: var(--color-surface);
+    border-radius: var(--radius-xl);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    border: var(--border);
+  }
+  .ds-control-panel__card > h3 {
+    margin: 0 0 var(--space-4) 0;
+    font-size: var(--text-base);
+    font-weight: var(--weight-bold);
+    color: var(--color-text);
+  }
+  .ds-control-panel__hint {
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+  }
+  .ds-control-panel__selection {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-block-end: var(--space-4);
+    min-height: var(--space-9);
+  }
+  .ds-control-panel__pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px var(--space-4);
+    border-radius: var(--radius-full);
+    background: var(--color-primary-soft);
+    color: var(--color-primary);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-semibold);
+  }
+  .ds-control-panel__actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-3);
+  }
+  .ds-control-panel__empty {
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+    text-align: center;
+    padding: var(--space-4) 0;
+  }
+  .ds-control-panel__request {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-3) 0;
+    border-bottom: var(--border-table);
+    font-size: var(--text-sm);
+  }
+  .ds-control-panel__request:last-child { border-bottom: none; }
+  .ds-control-panel__request-actions { display: flex; gap: var(--space-2); }
+  .ds-control-panel__mini-btn {
+    padding: 2px var(--space-4);
+    border: var(--border-strong);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font: inherit;
+    font-size: var(--text-sm);
+    cursor: pointer;
+  }
+  .ds-control-panel__mini-btn:hover { background: var(--color-hover-bg); }
+  .ds-control-panel__mini-btn--success { color: var(--color-success-text); border-color: var(--color-success-border); }
+
+  /* ==========================================================================
+     Search & filter bar
+     ========================================================================== */
+  .ds-search-filter {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-4);
+    align-items: center;
+    padding: var(--space-5);
+    margin-block: var(--space-6);
+    background: var(--color-surface);
+    border-radius: var(--radius-xl);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+    border: var(--border);
+  }
+  .ds-search-filter__input {
+    flex: 1 1 220px;
+    min-width: 0;
+    padding: var(--space-4);
+    border: var(--border-strong);
+    border-radius: var(--radius-lg);
+    font: inherit;
+    color: var(--color-text);
+    background: var(--color-surface);
+  }
+  .ds-search-filter__input::placeholder { color: var(--color-text-muted); }
+  .ds-search-filter__filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+  }
+  .ds-search-filter__filter-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-5);
+    border: var(--border-strong);
+    border-radius: var(--radius-lg);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font: inherit;
+    font-size: var(--text-sm);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+  }
+  .ds-search-filter__filter-btn:hover { background: var(--color-hover-bg); }
+  .ds-search-filter__filter-btn--active {
+    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
+    color: #ffffff;
+    border-color: var(--color-primary);
+  }
+  .ds-search-filter__count {
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+  }
+
+  /* ==========================================================================
+     Selection bar (contextual, appears with a selection)
+     ========================================================================== */
+  .ds-selection-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-4);
+    align-items: center;
+    padding: var(--space-4) var(--space-6);
+    margin-block: var(--space-5);
+    background: linear-gradient(135deg, var(--color-primary-soft), var(--color-surface));
+    border-radius: var(--radius-xl);
+    border: var(--border-strong);
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.1);
+  }
+  .ds-selection-bar__label {
+    font-size: var(--text-sm);
+    font-weight: var(--weight-semibold);
+    color: var(--color-text);
+  }
+  .ds-selection-bar__actions { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+  .ds-selection-bar__btn {
+    padding: var(--space-3) var(--space-5);
+    border: var(--border-strong);
+    border-radius: var(--radius-lg);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font: inherit;
+    font-size: var(--text-sm);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+  }
+  .ds-selection-bar__btn:hover { background: var(--color-hover-bg); }
+  .ds-selection-bar__btn--primary {
+    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
+    color: #ffffff;
+    border-color: var(--color-primary);
+  }
+  .ds-selection-bar__btn--danger {
+    background: linear-gradient(135deg, var(--color-danger), var(--color-danger-dark));
+    color: #ffffff;
+    border-color: var(--color-danger);
+  }
+
+  /* Device grid must not sit under the fixed panel on wide screens. The inline
+     padding shorthand is declared *before* this longhand so it wins. */
+  .ds-device-workspace { padding-inline-end: 380px; }
+  @media (max-width: 1200px) {
+    .ds-device-workspace { padding-inline-end: var(--space-9); }
+  }
+
+  .ds-control-panel__header {
+    background: linear-gradient(135deg, var(--color-primary-soft), var(--color-surface));
+    border-bottom: var(--border-strong);
+  }
+
+  .ds-control-panel__card {
+    background: var(--color-surface);
+    border-radius: var(--radius-xl);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    transition: all var(--transition-base);
+  }
+
+  .ds-control-panel__card:hover {
+    box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+    transform: translateX(2px);
+  }
+
+  .ds-control-panel__action-btn {
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+    transition: all var(--transition-base);
+  }
+
+  .ds-control-panel__action-btn:hover {
+    background: var(--color-hover-bg);
+    border-color: var(--color-primary);
+    transform: translateX(4px);
+  }
+
+  /* Enhanced bottom status bar */
+  .ds-status-bar {
+    background: linear-gradient(to right, var(--color-surface), var(--color-surface-subtle));
+    border-top: var(--border-strong);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.12);
+  }
+
+  .ds-status-bar__item {
+    padding: var(--space-3) var(--space-6);
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+
+  .ds-status-bar__value--primary {
+    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    font-weight: var(--weight-bold);
+  }
+
+  /* Modern search and filter controls */
+  .ds-search-filter {
+    background: var(--color-surface);
+    border-radius: var(--radius-xl);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+    border: var(--border);
+  }
+
+  .ds-search-filter__input {
+    border-radius: var(--radius-lg);
+    transition: all var(--transition-base);
+  }
+
+  .ds-search-filter__input:focus {
+    box-shadow: 0 0 0 3px var(--color-primary-ring);
+  }
+
+  .ds-search-filter__filter-btn {
+    border-radius: var(--radius-lg);
+    transition: all var(--transition-base);
+  }
+
+  .ds-search-filter__filter-btn:hover {
+    background: var(--color-primary-soft);
+    border-color: var(--color-primary);
+  }
+
+  .ds-search-filter__filter-btn--active {
+    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
+    color: white;
+    border: none;
+  }
+
+  /* Enhanced selection bar */
+  .ds-selection-bar {
+    background: linear-gradient(135deg, var(--color-primary-soft), var(--color-surface));
+    border-radius: var(--radius-xl);
+    border: var(--border-strong);
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.1);
+  }
+
+  .ds-selection-bar__btn {
+    border-radius: var(--radius-lg);
+    transition: all var(--transition-base);
+  }
+
+  .ds-selection-bar__btn:hover {
+    background: var(--color-primary);
+    color: white;
+    transform: translateY(-1px);
+  }
+
+  .ds-selection-bar__btn--primary {
+    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
+    border: none;
+    color: white;
+  }
+
+  .ds-selection-bar__btn--danger {
+    background: linear-gradient(135deg, var(--color-danger), var(--color-danger-dark));
+    border: none;
+    color: white;
+  }
+
+  /* RTL support enhancements */
+  /* RTL hover directions only — borders/shadows are already logical above */
+  html[dir="rtl"] .ds-control-panel__card:hover {
+    transform: translateX(-2px);
+  }
+
+  html[dir="rtl"] .ds-control-panel__action-btn:hover {
+    transform: translateX(-4px);
+  }
+
+  /* Responsive enhancements */
+  @media (max-width: 1200px) {
+    .ds-device-grid {
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    }
+  }
+
+  /* Off-canvas drawer below 1200px: the panel is hidden until opened */
+  @media (max-width: 1200px) {
+    .ds-control-panel {
+      transform: translateX(100%);
+      transition: transform var(--transition-base);
+    }
+
+    .ds-control-panel--mobile-open {
+      transform: translateX(0);
+    }
+
+    /* RTL: the panel is flush to the inline-start (left), so it slides out
+       to the left. Scoped to the drawer query so it can never hide the
+       panel on wide screens. */
+    html[dir="rtl"] .ds-control-panel {
+      transform: translateX(-100%);
+    }
+
+    html[dir="rtl"] .ds-control-panel--mobile-open {
+      transform: translateX(0);
+    }
+
+    .ds-panel-toggle {
+      inset-block-start: auto;
+      inset-block-end: var(--space-6);
+    }
+  }
+
+  @media (max-width: 1024px) {
+    .ds-toolbar__actions {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .ds-header {
+      padding: var(--space-4) var(--space-5);
+    }
+
+    .ds-toolbar {
+      padding: var(--space-4);
+    }
+
+    .ds-device-workspace {
+      padding: var(--space-4);
+    }
+
+    .ds-device-grid {
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: var(--space-4);
+    }
+
+    .ds-device-card {
+      height: 140px;
+      padding: var(--space-4);
+    }
+
+    .ds-device-card__number {
+      font-size: var(--text-3xl);
+    }
+
+    .ds-control-panel {
+      width: 100%;
+      padding: var(--space-4);
+    }
+
+    .ds-status-bar {
+      padding: var(--space-3);
+    }
+
+    .ds-status-bar__group {
+      flex-direction: column;
+      gap: var(--space-3);
+    }
+  }
+
+  /* Focus styles for accessibility */
+  .ds-toolbar__action-btn:focus-visible,
+  .ds-search-filter__input:focus-visible,
+  .ds-selection-bar__btn:focus-visible,
+  .ds-control-panel__action-btn:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 3px var(--color-primary-ring);
+  }
+
+  /* Print styles */
+  @media print {
+    .ds-header,
+    .ds-toolbar,
+    .ds-panel-toggle,
+    .ds-panel-backdrop,
+    .ds-control-panel,
+    .ds-status-bar,
+    .ds-search-filter,
+    .ds-selection-bar {
+      display: none;
+    }
+
+    .ds-device-workspace {
+      padding: 0;
+      max-width: none;
+    }
+
+    .ds-device-grid {
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    }
+
+    .ds-device-card {
+      border: 1px solid #000;
+      page-break-inside: avoid;
+    }
+  }
+
+  /* ==========================================================================
+     Device workspace — statistics, mode badge, simulation banner
+     ========================================================================== */
+  .ds-sim-banner {
+    background: var(--color-sim-bg);
+    color: var(--color-sim-text);
+    padding: var(--space-4) var(--space-9);
+    font-size: var(--text-base);
+    text-align: center;
+  }
+
+  .ds-mode-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 10px;
+    border-radius: var(--radius-full);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-semibold);
+  }
+  .ds-mode-badge--sim {
+    background: var(--color-sim-bg);
+    color: var(--color-sim-text);
+  }
+  .ds-mode-badge--live {
+    background: var(--color-live-bg);
+    color: var(--color-live-text);
+  }
+
+  .ds-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-5);
+    align-items: center;
+  }
+  .ds-stats__chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    background: var(--color-surface);
+    border: var(--border);
+    padding: var(--space-2) var(--space-4);
+    border-radius: var(--radius-full);
+    font-size: var(--text-base);
+  }
+  .ds-stats__chip b {
+    font-weight: var(--weight-bold);
+  }
+
+  /* ==========================================================================
+     Device grid + device cards
+     ========================================================================== */
+  .ds-device-grid {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    align-content: start;
+  }
+  .ds-device-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    aspect-ratio: 1.3;
+    padding: var(--space-4);
+    font: inherit;
+    color: var(--color-text);
+    background: var(--color-surface);
+    border: var(--border-strong);
+    border-radius: var(--radius-2xl);
+    cursor: pointer;
+    user-select: none;
+    text-align: center;
+    transition: transform var(--transition-fast), box-shadow var(--transition-base);
+  }
+  .ds-device-card:active {
+    transform: scale(0.97);
+  }
+  .ds-device-card__number {
+    font-size: var(--text-4xl);
+    font-weight: var(--weight-bold);
+    line-height: var(--leading-none);
+    color: inherit;
+  }
+  .ds-device-card__status {
+    font-size: var(--text-sm);
+    color: inherit;
+  }
+  .ds-panel-audio-list {
+    list-style: none;
+    margin: var(--space-4) 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    font-size: var(--text-sm);
+  }
+  .ds-panel-audio-list__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    color: var(--color-text-muted);
+  }
+  .ds-panel-audio-list__state {
+    font-weight: var(--weight-semibold);
+    color: var(--color-text);
+  }
+  .ds-panel-audio-list__state[data-audio-state="connecting"],
+  .ds-panel-audio-list__state[data-audio-state="new"] {
+    color: var(--color-warning);
+  }
+  .ds-panel-audio-list__state[data-audio-state="connected"] {
+    color: var(--color-success-text);
+  }
+  .ds-panel-audio-list__state[data-audio-state="failed"],
+  .ds-panel-audio-list__state[data-audio-state="disconnected"] {
+    color: var(--color-danger);
+  }
+  .ds-panel-audio-list__empty {
+    color: var(--color-text-muted);
+  }
+
+  .ds-device-card__audio {
+    font-size: var(--text-xs);
+    opacity: 0.9;
+  }
+  .ds-device-card__audio--ready { color: inherit; }
+  .ds-device-card__audio--sending { font-weight: var(--weight-semibold); }
+  .ds-device-card__audio--listening { font-weight: var(--weight-semibold); }
+  .ds-device-card__audio--connecting { opacity: 0.75; font-style: italic; }
+  .ds-device-card__audio--failed {
+    color: #ffffff;
+    background: var(--color-danger);
+    border-radius: var(--radius-full);
+    padding: 1px var(--space-3);
+  }
+  .ds-device-card__audio--disabled { opacity: 0.5; }
+
+  .ds-device-card.online {
+    background: var(--color-online);
+    color: #ffffff;
+    border-color: transparent;
+  }
+  .ds-device-card.offline {
+    background: var(--color-offline);
+    color: var(--color-offline-text);
+    opacity: 0.65;
+  }
+  .ds-device-card.absent {
+    background: repeating-linear-gradient(
+      45deg,
+      var(--color-absent-bg),
+      var(--color-absent-bg) 8px,
+      var(--color-offline-border) 8px,
+      var(--color-offline-border) 16px
+    );
+    color: var(--color-absent-text);
+    border: var(--border-absent);
+  }
+  .ds-device-card.blocked {
+    box-shadow: var(--shadow-inset-danger);
+  }
+  .ds-device-card.selected {
+    border-color: var(--color-primary);
+    box-shadow: var(--shadow-ring);
+  }
+  .ds-device-card.blocked.selected {
+    box-shadow: var(--shadow-inset-danger-ring);
+  }
+
+  .ds-device-card__lock {
+    position: absolute;
+    inset-block-start: var(--space-2);
+    inset-inline-start: var(--space-2);
+    background: var(--color-danger);
+    color: #ffffff;
+    font-size: var(--text-xs);
+    padding: 1px 7px;
+    border-radius: var(--radius-full);
+  }
+  .ds-device-card__quality {
+    position: absolute;
+    inset-block-start: var(--space-2);
+    inset-inline-end: var(--space-2);
+    font-size: var(--text-xs);
+    padding: 1px 6px;
+    border-radius: var(--radius-full);
+    background: var(--color-badge-neutral);
+    color: #ffffff;
+  }
+  .ds-device-card__quality.good {
+    background: var(--color-success);
+  }
+  .ds-device-card__quality.warn {
+    background: var(--color-warning);
+  }
+  .ds-device-card__quality.bad {
+    background: var(--color-danger);
+  }
+
+  /* ==========================================================================
+     Session report + status bar
+     ========================================================================== */
+  #session-report h3 {
+    margin: 0 0 var(--space-3) 0;
+    font-size: var(--text-md);
+  }
+  #session-report .row {
+    display: flex;
+    gap: var(--space-5);
+    flex-wrap: wrap;
+    margin-bottom: var(--space-2);
+  }
+  #session-report .stat {
+    background: var(--color-surface-subtle);
+    padding: var(--space-1) var(--space-4);
+    border-radius: var(--radius-md);
+  }
+  #session-report table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--text-sm);
+    margin-block-start: var(--space-3);
+  }
+  #session-report th,
+  #session-report td {
+    padding: var(--space-2) var(--space-3);
+    border-bottom: var(--border-table);
+    text-align: start;
+  }
+  #session-report .good {
+    color: var(--color-success-text);
+  }
+  #session-report .bad {
+    color: var(--color-danger);
+  }
+
+  .ds-status-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-5);
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-5) var(--space-9);
+  }
+  .ds-status-bar__group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-5);
+    align-items: center;
+  }
+  .ds-status-bar__item {
+    display: inline-flex;
+    gap: var(--space-2);
+    align-items: center;
+    font-size: var(--text-base);
+    color: var(--color-text-muted);
+  }
+  .ds-status-bar__value--primary {
+    color: var(--color-primary);
+    font-weight: var(--weight-bold);
+  }
+
+  /* ==========================================================================
+     Toolbar navigation + audio state
+     ========================================================================== */
+  .ds-toolbar__heading {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-5);
+    align-items: baseline;
+    justify-content: space-between;
+  }
+  .ds-toolbar__nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-5);
+    align-items: center;
+  }
+  .ds-toolbar__nav-link {
+    color: var(--color-primary);
+    font-size: var(--text-base);
+    text-decoration: none;
+  }
+  .ds-toolbar__nav-link:hover {
+    text-decoration: underline;
+  }
+  .ds-toolbar__audio-state {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    align-items: center;
+    margin: var(--space-4) 0 0;
+    font-size: var(--text-base);
+    color: var(--color-text-muted);
+  }
+
+  /* Text drawn with a gradient must never stay transparent if the gradient
+     cannot be resolved: keep a solid colour as the fallback. */
+  .ds-header__title,
+  .ds-status-bar__value--primary {
+    color: var(--color-primary);
+  }
 </style>
-</head>
-<body>
-<header>
-  <h1>لوحة تحكم معمل اللغات <span id="mode-badge" class="mode-badge"></span></h1>
-  <form method="post" action="{% url 'logout' %}">{% csrf_token %}
-    <a class="link" href="{% url 'setup' %}">الإعدادات والاتصال</a> &middot;
-    <span>{{ request.user.get_username }}</span> &middot;
-    <button class="link" type="submit">تسجيل الخروج</button>
-  </form>
-</header>
+{% endblock %}
+{% block content %}
 
-{% if simulate %}
-<div class="sim">وضع تجريبي: الحالات المعروضة وهمية ولا يتم التحكم في أي جهاز حقيقي (LAB_SIMULATE=1). اضبط LAB_SIMULATE=0 للتشغيل الفعلي.</div>
-{% endif %}
+  {% if simulate %}
+  <div class="ds-sim-banner">{% translate "وضع تجريبي: الحالات المعروضة وهمية ولا يتم التحكم في أي جهاز حقيقي (LAB_SIMULATE=1). اضبط LAB_SIMULATE=0 للتشغيل الفعلي." %}</div>
+  {% endif %}
 
-<div class="bar">
-  <div class="stats">
-    <span class="chip"><span class="dot online"></span>متصل <b id="c-online">0</b></span>
-    <span class="chip"><span class="dot offline"></span>غير متصل <b id="c-offline">0</b></span>
-    <span class="chip"><span class="dot absent"></span>غائب <b id="c-absent">0</b></span>
-    <span class="chip"><span class="dot blocked"></span>محظور <b id="c-blocked">0</b></span>
-    <span class="chip"><span class="dot selected"></span>محدد <b id="c-selected">0</b></span>
-  </div>
-  <div class="actions">
-    <button class="primary" id="btn-start-session">بدء الحصة</button>
-    <button class="ok" id="btn-end-session">إنهاء الحصة</button>
-    <span class="sep"></span>
-    <button data-do="select-online">تحديد المتصل</button>
-    <button data-do="clear">إلغاء التحديد</button>
-    <span class="sep"></span>
-    <button class="danger" data-act="lock" data-scope="selected">حظر المحدد</button>
-    <button class="ok" data-act="unlock" data-scope="selected">فتح المحدد</button>
-    <button data-act="absent" data-scope="selected">تغييب المحدد</button>
-    <button data-act="present" data-scope="selected">إلغاء التغييب</button>
-    <span class="sep"></span>
-    <button class="danger" data-act="lock" data-scope="all">حظر الكل</button>
-    <button class="ok" data-act="unlock" data-scope="all">فتح الكل</button>
-    <button data-act="sync_locks" data-scope="all">مزامنة حالة الحظر</button>
-  </div>
-</div>
+  <!-- Drawer toggle: the only way in on narrow screens, where the panel is off-canvas -->
+  <button class="ds-panel-toggle" id="panel-toggle" type="button"
+          aria-expanded="false" aria-controls="control-panel">
+    <span aria-hidden="true">&#9776;</span> {% translate "لوحة التحكم" %}
+  </button>
+  <div class="ds-panel-backdrop" id="panel-backdrop" hidden></div>
 
-<div id="session-report"></div>
+  <main class="ds-device-workspace" style="max-width: var(--width-wide); margin: var(--space-12) auto; padding: var(--space-9); padding-inline-end: 380px;">
 
-<div class="bar" style="padding-top:0">
-  <div class="stats">
-    <span class="chip" id="a-state">الصوت: متوقف</span>
-    <span id="a-info" style="font-size:14px;color:#374151"></span>
-  </div>
-  <div class="actions">
-    <button id="a-power">تشغيل الصوت</button>
-    <span class="sep"></span>
-    <button id="a-bcast-sel">بث للمحدد</button>
-    <button id="a-bcast-all">بث للكل</button>
-    <button id="a-bcast-stop">إيقاف البث</button>
-    <span class="sep"></span>
-    <button id="a-listen">استمع للمحدد</button>
-    <button id="a-talk">حوار مع المحدد</button>
-    <button id="a-listen-stop">إيقاف الاستماع</button>
-  </div>
-</div>
+    <section class="ds-toolbar">
+      <div class="ds-toolbar__section">
+        <div class="ds-toolbar__heading">
+          <h2 class="ds-toolbar__section-title">{% translate "إدارة الأجهزة" %}</h2>
+          <nav class="ds-toolbar__nav">
+            <a class="ds-toolbar__nav-link" href="{% url 'setup' %}">{% translate "الإعدادات والاتصال" %}</a>
+          </nav>
+        </div>
+        <div class="ds-toolbar__actions" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--space-4);">
+          <button class="ds-toolbar__action-btn ds-toolbar__action-btn--primary" id="btn-start-session">{% translate "بدء الحصة" %}</button>
+          <button class="ds-toolbar__action-btn ds-toolbar__action-btn--success" id="btn-end-session">{% translate "إنهاء الحصة" %}</button>
+          <button class="ds-toolbar__action-btn" data-do="select-online">{% translate "تحديد المتصل" %}</button>
+          <button class="ds-toolbar__action-btn" data-do="clear">{% translate "إلغاء التحديد" %}</button>
+          <button class="ds-toolbar__action-btn" data-do="select-filtered">{% translate "تحديد المعروض" %}</button>
+          <button class="ds-toolbar__action-btn ds-toolbar__action-btn--danger" data-act="lock" data-scope="selected">{% translate "حظر المحدد" %}</button>
+          <button class="ds-toolbar__action-btn ds-toolbar__action-btn--success" data-act="unlock" data-scope="selected">{% translate "فتح المحدد" %}</button>
+          <button class="ds-toolbar__action-btn" data-act="absent" data-scope="selected">{% translate "تغييب المحدد" %}</button>
+          <button class="ds-toolbar__action-btn" data-act="present" data-scope="selected">{% translate "إلغاء التغييب" %}</button>
+          <button class="ds-toolbar__action-btn ds-toolbar__action-btn--danger" data-act="lock" data-scope="all">{% translate "حظر الكل" %}</button>
+          <button class="ds-toolbar__action-btn ds-toolbar__action-btn--success" data-act="unlock" data-scope="all">{% translate "فتح الكل" %}</button>
+          <button class="ds-toolbar__action-btn" data-act="sync_locks" data-scope="all">{% translate "مزامنة حالة الحظر" %}</button>
+        </div>
+      </div>
+    </section>
 
-<div id="msg"></div>
-<div id="grid"></div>
+    <section class="ds-toolbar__section" style="margin-block-start: var(--space-6);">
+      <h2 class="ds-toolbar__section-title">{% translate "الصوت" %}</h2>
+      <div class="ds-toolbar__actions" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--space-4);">
+        <button class="ds-toolbar__action-btn" id="a-power">{% translate "تشغيل الصوت" %}</button>
+        <button class="ds-toolbar__action-btn" id="a-bcast-sel">{% translate "بث للمحدد" %}</button>
+        <button class="ds-toolbar__action-btn" id="a-bcast-all">{% translate "بث للكل" %}</button>
+        <button class="ds-toolbar__action-btn" id="a-bcast-stop">{% translate "إيقاف البث" %}</button>
+        <button class="ds-toolbar__action-btn" id="a-listen">{% translate "استمع للمحدد" %}</button>
+        <button class="ds-toolbar__action-btn" id="a-talk">{% translate "حوار مع المحدد" %}</button>
+        <button class="ds-toolbar__action-btn" id="a-listen-stop">{% translate "إيقاف الاستماع" %}</button>
+      </div>
+      <p class="ds-toolbar__audio-state">
+        <span class="ds-chip" id="a-state">{% translate "الصوت: متوقف" %}</span>
+        <span id="a-info"></span>
+      </p>
+    </section>
 
+    <!-- Device search and filter -->
+    <section class="ds-search-filter" aria-label="{% translate "بحث وتصفية الأجهزة" %}">
+      <input class="ds-search-filter__input" id="search-input" type="search" inputmode="search"
+             autocomplete="off"
+             placeholder="{% translate "ابحث برقم الجهاز أو الاسم..." %}" aria-label="{% translate "ابحث في الأجهزة" %}">
+      <div class="ds-search-filter__filters" role="group" aria-label="{% translate "تصفية الأجهزة" %}">
+        <button class="ds-search-filter__filter-btn ds-search-filter__filter-btn--active" type="button" data-filter="all">{% translate "الكل" %}</button>
+        <button class="ds-search-filter__filter-btn" type="button" data-filter="online"><span class="ds-dot ds-dot--online"></span>{% translate "متصل" %}</button>
+        <button class="ds-search-filter__filter-btn" type="button" data-filter="offline"><span class="ds-dot ds-dot--offline"></span>{% translate "غير متصل" %}</button>
+        <button class="ds-search-filter__filter-btn" type="button" data-filter="absent"><span class="ds-dot ds-dot--absent"></span>{% translate "غائب" %}</button>
+        <button class="ds-search-filter__filter-btn" type="button" data-filter="blocked"><span class="ds-dot ds-dot--blocked"></span>{% translate "محظور" %}</button>
+        <button class="ds-search-filter__filter-btn" type="button" data-filter="selected"><span class="ds-dot ds-dot--selected"></span>{% translate "محدد" %}</button>
+      </div>
+      <span class="ds-search-filter__count" id="filter-count" aria-live="polite"></span>
+    </section>
+
+    <!-- Contextual selection bar: only visible when a device is selected -->
+    <section class="ds-selection-bar" id="selection-bar" hidden
+             role="region" aria-label="{% translate "خيارات الأجهزة المحددة" %}">
+      <span class="ds-selection-bar__label" id="selection-summary"></span>
+      <div class="ds-selection-bar__actions">
+        <button class="ds-selection-bar__btn ds-selection-bar__btn--primary" type="button" data-do="select-filtered">{% translate "تحديد المعروض" %}</button>
+        <button class="ds-selection-bar__btn ds-selection-bar__btn--danger" type="button" data-act="lock" data-scope="selected">{% translate "حظر المحدد" %}</button>
+        <button class="ds-selection-bar__btn ds-selection-bar__btn--primary" type="button" data-act="unlock" data-scope="selected">{% translate "فتح المحدد" %}</button>
+        <button class="ds-selection-bar__btn" type="button" data-act="absent" data-scope="selected">{% translate "تغييب المحدد" %}</button>
+        <button class="ds-selection-bar__btn" type="button" data-act="present" data-scope="selected">{% translate "إلغاء التغييب" %}</button>
+        <button class="ds-selection-bar__btn" type="button" data-do="clear">{% translate "إلغاء التحديد" %}</button>
+      </div>
+    </section>
+
+    <div id="session-report" style="margin: var(--space-6) 0; padding: var(--space-6); background: var(--color-surface); border-radius: var(--radius-xl); border: var(--border); display: none;"></div>
+
+    <section class="ds-device-grid" id="grid" style="display: grid;"></section>
+
+    <div id="msg" class="ds-msg" style="margin: var(--space-6) var(--space-9) 0;"></div>
+
+  </main>
+
+  <aside class="ds-control-panel" id="control-panel" aria-label="{% translate "لوحة التحكم" %}">
+    <div class="ds-control-panel__header">
+      <h2>{% translate "لوحة التحكم" %}</h2>
+      <button class="ds-control-panel__close" id="panel-close" type="button" aria-label="{% translate "إغلاق اللوحة" %}">&times;</button>
+    </div>
+
+    <!-- 1. Selected device summary -->
+    <div class="ds-control-panel__card">
+      <h3>{% translate "الأجهزة المحددة" %}</h3>
+      <div class="ds-control-panel__selection" id="panel-selection-summary"></div>
+      <p class="ds-control-panel__hint" id="panel-selection-hint"></p>
+      <div class="ds-control-panel__actions">
+        <button class="ds-selection-bar__btn" type="button" data-do="select-filtered">{% translate "تحديد المعروض" %}</button>
+        <button class="ds-selection-bar__btn" type="button" data-do="clear">{% translate "إلغاء التحديد" %}</button>
+      </div>
+    </div>
+
+    <!-- 2. Audio status -->
+    <div class="ds-control-panel__card">
+      <h3>{% translate "الصوت" %}</h3>
+      <p class="ds-control-panel__hint"><span class="ds-chip" id="panel-a-state">{% translate "الصوت: متوقف" %}</span> <span id="panel-a-info"></span></p>
+      <!-- الحالة الحقيقية لكل اتصال: جديد / جارٍ الاتصال / متصل / فشل / انقطع / متوقف -->
+      <ul class="ds-panel-audio-list" id="panel-a-peers" aria-live="polite"></ul>
+      <div class="ds-control-panel__actions" style="margin-block-start: var(--space-4); display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3);">
+        <button class="ds-selection-bar__btn ds-selection-bar__btn--primary" type="button" id="panel-a-power">{% translate "تشغيل / إيقاف" %}</button>
+        <button class="ds-selection-bar__btn" type="button" id="panel-a-listen-stop">{% translate "إيقاف الاستماع" %}</button>
+      </div>
+      <!-- Selection-aware audio controls -->
+      <div class="ds-control-panel__actions" style="margin-block-start: var(--space-4); display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3);">
+        <button class="ds-selection-bar__btn" type="button" id="panel-a-bcast-sel" disabled>{% translate "بث للمحدد" %}</button>
+        <button class="ds-selection-bar__btn" type="button" id="panel-a-bcast-all">{% translate "بث للكل" %}</button>
+        <button class="ds-selection-bar__btn" type="button" id="panel-a-bcast-stop" disabled>{% translate "إيقاف البث" %}</button>
+        <button class="ds-selection-bar__btn" type="button" id="panel-a-listen" disabled>{% translate "استمع للمحدد" %}</button>
+        <button class="ds-selection-bar__btn ds-selection-bar__btn--primary" type="button" id="panel-a-talk" disabled>{% translate "حوار مع المحدد" %}</button>
+      </div>
+    </div>
+
+    <!-- 3. Actions on the current selection -->
+    <div class="ds-control-panel__card">
+      <h3>{% translate "إجراءات على المحدد" %}</h3>
+      <div class="ds-control-panel__actions">
+        <button class="ds-selection-bar__btn ds-selection-bar__btn--danger" type="button" data-act="lock" data-scope="selected">{% translate "حظر المحدد" %}</button>
+        <button class="ds-selection-bar__btn ds-selection-bar__btn--primary" type="button" data-act="unlock" data-scope="selected">{% translate "فتح المحدد" %}</button>
+        <button class="ds-selection-bar__btn" type="button" data-act="absent" data-scope="selected">{% translate "تغييب المحدد" %}</button>
+        <button class="ds-selection-bar__btn" type="button" data-act="present" data-scope="selected">{% translate "إلغاء التغييب" %}</button>
+      </div>
+    </div>
+
+    <!-- 4. Assistance requests -->
+    <div class="ds-control-panel__card">
+      <h3>{% translate "طلبات المساعدة" %}</h3>
+      <div id="assistance-list" aria-live="polite">
+        <p class="ds-control-panel__empty">{% translate "لا توجد طلبات" %}</p>
+      </div>
+    </div>
+
+    <!-- 5. Classroom summary -->
+    <div class="ds-control-panel__card">
+      <h3>{% translate "ملخص القاعة" %}</h3>
+      <p class="ds-control-panel__hint" id="panel-classroom-summary"></p>
+    </div>
+  </aside>
+
+  <footer class="ds-status-bar" role="contentinfo">
+    <div class="ds-status-bar__group ds-stats" aria-live="polite">
+      <span class="ds-stats__chip"><span class="ds-dot ds-dot--online"></span>{% translate "متصل" %} <b id="c-online">0</b></span>
+      <span class="ds-stats__chip"><span class="ds-dot ds-dot--offline"></span>{% translate "غير متصل" %} <b id="c-offline">0</b></span>
+      <span class="ds-stats__chip"><span class="ds-dot ds-dot--absent"></span>{% translate "غائب" %} <b id="c-absent">0</b></span>
+      <span class="ds-stats__chip"><span class="ds-dot ds-dot--blocked"></span>{% translate "محظور" %} <b id="c-blocked">0</b></span>
+      <span class="ds-stats__chip"><span class="ds-dot ds-dot--selected"></span>{% translate "محدد" %} <b id="c-selected">0</b></span>
+    </div>
+    <div class="ds-status-bar__group">
+      <span class="ds-status-bar__item">{% translate "الإجمالي" %}: <b id="c-total">0</b></span>
+      <span class="ds-status-bar__item">{% translate "القاعة" %}: <span id="active-classroom" class="ds-status-bar__value--primary">{{ classroom.name|default:"—" }}</span></span>
+      <span class="ds-status-bar__item"><span id="mode-badge" class="ds-mode-badge"></span></span>
+    </div>
+  </footer>
+
+{% endblock %}
+
+{% block script %}
 <script>
 const grid = document.getElementById('grid');
 const msg = document.getElementById('msg');
@@ -163,8 +1174,9 @@ function csrf() {
 
 function setMode(simulate) {
   const badge = document.getElementById('mode-badge');
-  badge.textContent = simulate ? 'وضع تجريبي' : 'تشغيل فعلي';
-  badge.className = 'mode-badge ' + (simulate ? 'sim' : 'live');
+  if (!badge) return;
+  badge.textContent = simulate ? gettext('وضع تجريبي') : gettext('تشغيل فعلي');
+  badge.className = 'ds-mode-badge ' + (simulate ? 'ds-mode-badge--sim' : 'ds-mode-badge--live');
 }
 
 function qualityClass(q) {
@@ -176,48 +1188,95 @@ function qualityClass(q) {
 function qualityText(q) {
   if (q == null) return '';
   const cls = qualityClass(q);
-  return cls === 'good' ? 'ممتاز' : cls === 'warn' ? 'متوسط' : 'ضعيف';
+  return cls === 'good' ? gettext('ممتاز') : cls === 'warn' ? gettext('متوسط') : gettext('ضعيف');
+}
+
+// ---------------- فرز وتصفية
+let currentFilter = 'all';
+let searchQuery = '';
+const visibleNumbers = new Set();   // أرقام الأجهزة المعروضة حاليًا
+
+function deviceState(d) {
+  return d.absent ? 'absent' : (d.online ? 'online' : 'offline');
+}
+
+function matchesFilter(d) {
+  switch (currentFilter) {
+    case 'online':   return !d.absent && d.online;
+    case 'offline':  return !d.absent && !d.online;
+    case 'absent':   return !!d.absent;
+    case 'blocked':  return !!d.blocked;
+    case 'selected': return selected.has(d.number);
+    default:         return true;
+  }
+}
+
+function matchesQuery(d) {
+  if (!searchQuery) return true;
+  const q = searchQuery.toLowerCase();
+  return String(d.number).includes(q) || (d.name || '').toLowerCase().includes(q);
 }
 
 function render() {
   grid.textContent = '';
+  visibleNumbers.clear();
   let c = { online: 0, offline: 0, absent: 0, blocked: 0 };
+  let shown = 0;
   devices.forEach(d => {
-    const state = d.absent ? 'absent' : (d.online ? 'online' : 'offline');
+    const state = deviceState(d);
     c[state]++;
     if (d.blocked) c.blocked++;
+    if (!matchesFilter(d) || !matchesQuery(d)) return;
+    shown++;
+    visibleNumbers.add(d.number);
 
     const b = document.createElement('button');
     b.type = 'button';
-    b.className = 'tile ' + state + (d.blocked ? ' blocked' : '') + (selected.has(d.number) ? ' selected' : '');
+    b.className = 'ds-device-card ' + state + (d.blocked ? ' blocked' : '') + (selected.has(d.number) ? ' selected' : '');
+    b.dataset.number = d.number;
     if (d.name) b.title = d.name;
 
     const num = document.createElement('span');
-    num.className = 'num'; num.textContent = d.number;
+    num.className = 'ds-device-card__number'; num.textContent = d.number;
     const st = document.createElement('span');
-    st.className = 'st';
-    st.textContent = state === 'absent' ? 'غائب' : (state === 'online' ? 'متصل' : 'غير متصل');
+    st.className = 'ds-device-card__status';
+    st.textContent = state === 'absent' ? gettext('غائب') : (state === 'online' ? gettext('متصل') : gettext('غير متصل'));
     b.append(num, st);
+    // شارة حالة الصوت على البطاقة، مبنية على الدور + حالة اتصال WebRTC الحقيقية
     let au = '';
-    if (audioInfo.listen === d.number) au = 'نستمع إليه';
-    else if (audioInfo.ready.has(d.number) && audioInfo.on && (audioInfo.all || audioInfo.set.has(d.number))) au = 'يسمعك';
-    else if (audioInfo.ready.has(d.number)) au = 'صوت جاهز';
+    let auState = '';
+    if (audioInfo.listen === d.number) { au = gettext('نستمع إليه'); auState = 'listening'; }
+    else if (audioInfo.ready.has(d.number) && audioInfo.on && (audioInfo.all || audioInfo.set.has(d.number))) { au = gettext('يسمعك'); auState = 'sending'; }
+    else if (audioInfo.ready.has(d.number)) { au = gettext('صوت جاهز'); auState = 'ready'; }
+    const peer = (typeof window.__labAudioState === 'function')
+      ? window.__labAudioState().peers.find(p => p.number === d.number) : null;
+    const conn = peer ? peer.state : null;
+    if (conn === 'connecting' || conn === 'new') { au = gettext('جارٍ الاتصال'); auState = 'connecting'; }
+    else if (conn === 'failed') { au = gettext('فشل الاتصال'); auState = 'failed'; }
+    else if (conn === 'disconnected') { au = gettext('انقطع الاتصال'); auState = 'failed'; }
+    else if (conn === 'closed') { au = gettext('متوقف'); auState = 'disabled'; }
     if (au) {
       const a = document.createElement('span');
-      a.className = 'au'; a.textContent = au;
+      a.className = 'ds-device-card__audio ds-device-card__audio--' + auState;
+      a.dataset.audioRole = au;
+      // حالة الاتصال تُكتب مباشرة على العنصر فيعمل تعديل CSS، ويحدّثها كتلة
+      // الصوت لحظيًا عبر __labBindAudioState دون إعادة رسم الشبكة.
+      a.dataset.audioState = conn || 'ready';
+      if (window.__labBindAudioState) window.__labBindAudioState(d.number, a);
+      a.textContent = au;
       b.append(a);
     }
     if (d.blocked) {
       const lock = document.createElement('span');
-      lock.className = 'lock'; lock.textContent = 'محظور';
+      lock.className = 'ds-device-card__lock'; lock.textContent = gettext('محظور');
       b.append(lock);
     }
     const q = quality.get(d.number);
     if (q && audioInfo.ready.has(d.number)) {
       const qel = document.createElement('span');
-      qel.className = 'q ' + qualityClass(q);
+      qel.className = 'ds-device-card__quality ' + qualityClass(q);
       qel.textContent = qualityText(q);
-      qel.title = `زمن الاستجابة: ${q.rtt}ms — فقدان: ${q.loss}%`;
+      qel.title = `${gettext('زمن الاستجابة')}: ${q.rtt}ms — ${gettext('فقدان')}: ${q.loss}%`;
       b.append(qel);
     }
     b.addEventListener('click', () => {
@@ -226,14 +1285,30 @@ function render() {
     });
     grid.append(b);
   });
+
+  if (!shown) {
+    const empty = document.createElement('p');
+    empty.className = 'ds-device-grid__empty';
+    empty.style.gridColumn = '1 / -1';
+    empty.style.textAlign = 'center';
+    empty.style.color = 'var(--color-text-muted)';
+    empty.textContent = gettext('لا توجد أجهزة مطابقة.');
+    grid.append(empty);
+  }
+
   for (const k of ['online', 'offline', 'absent', 'blocked']) {
     document.getElementById('c-' + k).textContent = c[k];
   }
   document.getElementById('c-selected').textContent = selected.size;
+  document.getElementById('c-total').textContent = devices.length;
+  const fc = document.getElementById('filter-count');
+  if (fc) fc.textContent = gettext('معروض:') + ' ' + shown + ' / ' + gettext('الإجمالي:') + ' ' + devices.length;
+  renderSelectionUi();
 }
 
 async function refresh() {
   if (busy) return;
+  busy = true;
   try {
     const r = await fetch('/api/status/', { headers: { 'Accept': 'application/json' } });
     if (r.status === 401 || r.status === 403 || r.redirected) { location.reload(); return; }
@@ -243,6 +1318,8 @@ async function refresh() {
     render();
   } catch (e) {
     msg.textContent = 'تعذر تحديث الحالة، تأكد أن الخادم يعمل.';
+  } finally {
+    busy = false;
   }
 }
 
@@ -356,13 +1433,332 @@ async function endSession() {
 
 document.getElementById('btn-start-session').addEventListener('click', startSession);
 document.getElementById('btn-end-session').addEventListener('click', endSession);
+// كل الأزرار التي تحمل data-act/data-do (الشريط، شريط التحديد، لوحة التحكم)
+// تعمل على الجهاز أو الأجهزة المحددة فعليًا، لا على زر مخزّن.
 document.querySelectorAll('[data-act]').forEach(btn =>
   btn.addEventListener('click', () => act(btn.dataset.act, btn.dataset.scope)));
-document.querySelector('[data-do="clear"]').addEventListener('click', () => { selected.clear(); render(); });
-document.querySelector('[data-do="select-online"]').addEventListener('click', () => {
-  devices.filter(d => d.online && !d.absent).forEach(d => selected.add(d.number));
-  render();
+document.querySelectorAll('[data-do]').forEach(btn =>
+  btn.addEventListener('click', () => {
+    const action = btn.dataset.do;
+    if (action === 'clear') {
+      selected.clear();
+    } else if (action === 'select-online') {
+      devices.filter(d => d.online && !d.absent).forEach(d => selected.add(d.number));
+    } else if (action === 'select-filtered') {
+      // تحديد كل ما يطابق التصفية/البحث الحالي
+      [...visibleNumbers].forEach(n => selected.add(n));
+    }
+    render();
+  }));
+
+// ---------------- البحث والتصفية
+const searchInput = document.getElementById('search-input');
+if (searchInput) {
+  searchInput.addEventListener('input', () => { searchQuery = searchInput.value.trim(); render(); });
+  searchInput.addEventListener('search', () => { searchQuery = searchInput.value.trim(); render(); });
+}
+document.querySelectorAll('[data-filter]').forEach(btn =>
+  btn.addEventListener('click', () => {
+    currentFilter = btn.dataset.filter;
+    document.querySelectorAll('[data-filter]').forEach(b =>
+      b.classList.toggle('ds-search-filter__filter-btn--active', b === btn));
+    render();
+  }));
+
+// ---------------- شريط التحديد ولوحة التحكم
+const selectionBar = document.getElementById('selection-bar');
+const selectionSummary = document.getElementById('selection-summary');
+const panelSelection = document.getElementById('panel-selection-summary');
+const panelSelectionHint = document.getElementById('panel-selection-hint');
+
+// عرض حالة الصوت داخل اللوحة الجانبية بنفس الحالة الحقيقية للشريط الرئيسي
+function syncPanelAudio() {
+  const state = document.getElementById('a-state');
+  const info = document.getElementById('a-info');
+  const pState = document.getElementById('panel-a-state');
+  const pInfo = document.getElementById('panel-a-info');
+  if (state && pState) pState.textContent = state.textContent;
+  if (info && pInfo) pInfo.textContent = info.textContent;
+}
+
+function renderSelectionUi() {
+  const numbers = [...selected].sort((a, b) => a - b);
+  const label = numbers.length
+    ? gettext('محدد:') + ' ' + numbers.length + ' (' + numbers.join('، ') + ')'
+    : gettext('لا يوجد تحديد');
+
+  if (selectionBar) {
+    selectionBar.hidden = numbers.length === 0;
+    if (selectionSummary) selectionSummary.textContent = label;
+  }
+  if (panelSelection) {
+    panelSelection.textContent = '';
+    if (!numbers.length) {
+      const p = document.createElement('span');
+      p.className = 'ds-control-panel__empty';
+      p.textContent = gettext('لم تحدد أي جهاز بعد');
+      panelSelection.append(p);
+    } else {
+      numbers.forEach(n => {
+        const s = document.createElement('span');
+        s.className = 'ds-control-panel__pill';
+        s.textContent = n;
+        panelSelection.append(s);
+      });
+    }
+  }
+  if (panelSelectionHint) {
+    panelSelectionHint.textContent = numbers.length
+      ? gettext('الإجراءات أدناه تسري على الأجهزة المحددة فقط.')
+      : gettext('انقر على جهاز في الشبكة لتحديده.');
+  }
+  const summary = document.getElementById('panel-classroom-summary');
+  if (summary) {
+    const on = devices.filter(d => d.online && !d.absent).length;
+    summary.textContent = gettext('الإجمالي:') + ' ' + devices.length + ' — '
+      + gettext('متصل:') + ' ' + on + ' — '
+      + gettext('غائب:') + ' ' + devices.filter(d => d.absent).length + ' — '
+      + gettext('محظور:') + ' ' + devices.filter(d => d.blocked).length;
+  }
+  renderPeerStates();
+}
+
+// حالة كل اتصال صوت كما هي فعليًا (وليس كما نتمناها): جديد/جارٍ/متصل/فشل/انقطع/متوقف
+const PEER_STATE_LABELS = {
+  new: 'جارٍ الاتصال',
+  connecting: 'جارٍ الاتصال',
+  connected: 'متصل',
+  failed: 'فشل الاتصال',
+  disconnected: 'انقطع الاتصال',
+  closed: 'متوقف',
+};
+
+function renderPeerStates() {
+  const list = document.getElementById('panel-a-peers');
+  if (!list) return;
+  const st = (typeof window.__labAudioState === 'function') ? window.__labAudioState() : null;
+  list.textContent = '';
+  if (!st || !st.ready.size) {
+    const li = document.createElement('li');
+    li.className = 'ds-panel-audio-list__empty';
+    li.textContent = gettext('لا يوجد جهاز متصل');
+    list.append(li);
+    return;
+  }
+  [...st.ready].sort((a, b) => a - b).forEach(number => {
+    const li = document.createElement('li');
+    li.className = 'ds-panel-audio-list__row';
+    const who = document.createElement('span');
+    let role = '';
+    if (st.listen === number) role = gettext('نستمع إليه');
+    else if (st.on && (st.all || st.broadcast.has(number))) role = gettext('يسمعك');
+    else if (st.on) role = gettext('صوت جاهز');
+    who.textContent = number + (role ? ' — ' + role : '');
+    const badge = document.createElement('span');
+    badge.className = 'ds-panel-audio-list__state';
+    const peer = st.peers.find(p => p.number === number);
+    if (!st.on) {
+      badge.textContent = gettext('الصوت متوقف');
+    } else if (!peer) {
+      badge.textContent = gettext('جارٍ الاتصال');
+      badge.dataset.audioState = 'new';
+    } else {
+      badge.textContent = PEER_STATE_LABELS[peer.state] || peer.state;
+      badge.dataset.audioState = peer.state;
+    }
+    li.append(who, badge);
+    list.append(li);
+  });
+  syncPanelAudio();
+}
+
+// ---------------- درج لوحة التحكم على الشاشات الضيقة
+const panel = document.getElementById('control-panel');
+const panelToggle = document.getElementById('panel-toggle');
+const panelBackdrop = document.getElementById('panel-backdrop');
+const panelClose = document.getElementById('panel-close');
+
+function setPanelOpen(open) {
+  if (!panel) return;
+  panel.classList.toggle('ds-control-panel--mobile-open', open);
+  if (panelToggle) panelToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+  if (panelBackdrop) panelBackdrop.hidden = !open;
+}
+
+if (panelToggle) panelToggle.addEventListener('click', () => {
+  setPanelOpen(panel && !panel.classList.contains('ds-control-panel--mobile-open'));
 });
+if (panelClose) panelClose.addEventListener('click', () => setPanelOpen(false));
+if (panelBackdrop) panelBackdrop.addEventListener('click', () => setPanelOpen(false));
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && panel && panel.classList.contains('ds-control-panel--mobile-open')) {
+    setPanelOpen(false);
+    if (panelToggle) panelToggle.focus();
+  }
+});
+
+// ---------------- طلبات المساعدة (نقطة نهاية المعلم القائمة)
+const assistanceList = document.getElementById('assistance-list');
+
+async function loadAssistance() {
+  if (!assistanceList) return;
+  try {
+    const r = await fetch('/api/assistance/', { headers: { 'Accept': 'application/json' } });
+    if (!r.ok) { assistanceList.textContent = ''; return; }
+    const data = await r.json();
+    const reqs = data.requests || [];
+    if (!reqs.length) {
+      assistanceList.textContent = '';
+      const p = document.createElement('p');
+      p.className = 'ds-control-panel__empty';
+      p.textContent = gettext('لا توجد طلبات');
+      assistanceList.append(p);
+      return;
+    }
+    assistanceList.textContent = '';
+    reqs.forEach(item => {
+      const row = document.createElement('div');
+      row.className = 'ds-control-panel__request';
+      const who = document.createElement('span');
+      const type = item.request_type === 'hand_raise' ? gettext('يد مرفوعة') : gettext('طلب مساعدة');
+      const dev = item.device ? gettext('جهاز') + ' ' + item.device : '';
+      who.textContent = item.student + (dev ? ' — ' + dev : '') + ' — ' + type;
+      const actions = document.createElement('div');
+      actions.className = 'ds-control-panel__request-actions';
+      for (const [status, cls, label] of [
+        ['acknowledged', '', gettext('تأكيد')],
+        ['resolved', 'ds-control-panel__mini-btn--success', gettext('حل')],
+        ['dismissed', '', gettext('تجاهل')],
+      ]) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'ds-control-panel__mini-btn' + (cls ? ' ' + cls : '');
+        b.textContent = label;
+        b.addEventListener('click', () => updateAssistance(item.id, status));
+        actions.append(b);
+      }
+      row.append(who, actions);
+      assistanceList.append(row);
+    });
+  } catch (e) { /* الشبكة متقطعة مؤقتًا؛ المحاولة التالية بعد 10 ثوانٍ */ }
+}
+
+async function updateAssistance(id, status) {
+  try {
+    const r = await fetch('/api/assistance/' + id + '/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
+      body: JSON.stringify({ status }),
+    });
+    if (r.ok) loadAssistance();
+  } catch (e) {}
+}
+
+// أزرار الصوت في لوحة التحكم تستدعي نفس الدوال الحقيقية، لا نسخة مكرّرة
+  const panelPower = document.getElementById('panel-a-power');
+  if (panelPower) {
+    panelPower.addEventListener('click', () => {
+      if (window.__labAudioToggle) window.__labAudioToggle();
+      else document.getElementById('a-power').click();
+    });
+  }
+  const panelListenStop = document.getElementById('panel-a-listen-stop');
+  if (panelListenStop) {
+    panelListenStop.addEventListener('click', () => document.getElementById('a-listen-stop').click());
+  }
+
+  // Selection-aware panel audio buttons
+  const panelBcastSel = document.getElementById('panel-a-bcast-sel');
+  const panelBcastAll = document.getElementById('panel-a-bcast-all');
+  const panelBcastStop = document.getElementById('panel-a-bcast-stop');
+  const panelListen = document.getElementById('panel-a-listen');
+  const panelTalk = document.getElementById('panel-a-talk');
+
+  if (panelBcastSel) {
+    panelBcastSel.addEventListener('click', () => {
+      if (window.__labBroadcast) window.__labBroadcast(false);
+    });
+  }
+  if (panelBcastAll) {
+    panelBcastAll.addEventListener('click', () => {
+      if (window.__labBroadcast) window.__labBroadcast(true);
+    });
+  }
+  if (panelBcastStop) {
+    panelBcastStop.addEventListener('click', () => {
+      if (window.__labStopBroadcast) window.__labStopBroadcast();
+    });
+  }
+  if (panelListen) {
+    panelListen.addEventListener('click', () => {
+      if (selected.size === 1) {
+        const number = [...selected][0];
+        if (window.__labListen) window.__labListen(number);
+      }
+    });
+  }
+  if (panelTalk) {
+    panelTalk.addEventListener('click', () => {
+      if (selected.size === 1) {
+        const number = [...selected][0];
+        if (window.__labTalk) window.__labTalk(number);
+      }
+    });
+  }
+
+  // Update panel audio button states based on selection and audio state
+  function updatePanelAudioButtons() {
+    const hasSelection = selected.size > 0;
+    const singleSelection = selected.size === 1;
+    const audioOn = (typeof window.__labAudioState === 'function') ? window.__labAudioState().on : false;
+    const isBroadcasting = (typeof window.__labAudioState === 'function') ? (window.__labAudioState().all || window.__labAudioState().broadcast.size > 0) : false;
+    const isListening = (typeof window.__labAudioState === 'function') ? (window.__labAudioState().listen != null) : false;
+
+    if (panelBcastSel) panelBcastSel.disabled = !hasSelection;
+    if (panelBcastStop) panelBcastStop.disabled = !isBroadcasting;
+    if (panelListen) panelListen.disabled = !singleSelection;
+    if (panelTalk) panelTalk.disabled = !singleSelection;
+    // broadcast all is always enabled when audio is on (or will turn audio on)
+    if (panelBcastAll) panelBcastAll.disabled = false;
+  }
+
+  // Call updatePanelAudioButtons when selection changes
+  const originalRenderSelectionUi = renderSelectionUi;
+  renderSelectionUi = function() {
+    originalRenderSelectionUi();
+    updatePanelAudioButtons();
+  };
+  // Also update when audio state changes
+  const originalSyncPanelAudio = syncPanelAudio;
+  syncPanelAudio = function() {
+    originalSyncPanelAudio();
+    updatePanelAudioButtons();
+  };
+
+// تغيير القاعة: يبدّل الجهازات المعروضة ويعيد توصيل قناة الصوت بقاعة واحدة
+// حتى يبقى عزل القاعات محفوظًا في WebSocket.
+const classroomSelect = document.getElementById('classroom-select');
+if (classroomSelect) {
+  let currentClassroomId = classroomSelect.value;
+  classroomSelect.addEventListener('change', async () => {
+    const id = classroomSelect.value;
+    // لا تفعل شيئًا إن لم تتغير القاعة فعلًا: حدث change ينطلق أيضًا عند إعادة
+    // اختيار نفس الخيار، وإعادة التوصيل تضيف قناة معلم زائدة في نفس القاعة.
+    if (id === currentClassroomId) return;
+    currentClassroomId = id;
+    try {
+      await fetch('/api/set-classroom/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
+        body: JSON.stringify({ classroom_id: id }),
+      });
+    } catch (e) {}
+    const label = document.getElementById('active-classroom');
+    if (label) label.textContent = classroomSelect.options[classroomSelect.selectedIndex].text;
+    if (window.__labReconnectAudio) window.__labReconnectAudio(id);
+    refresh();
+  });
+}
 
 // تحديث جودة الاتصال من كتلة الصوت
 window.__labSetQuality = function(number, q) {
@@ -375,8 +1771,13 @@ window.__labClearQuality = function(number) {
 };
 
 refresh();
-setInterval(refresh, 4000);
+  setInterval(refresh, 4000);
+  setInterval(loadAssistance, 10000);
+  // Periodic peer state updates for the panel (connection states change over time)
+  setInterval(renderPeerStates, 3000);
+  loadAssistance();
+  renderSelectionUi();
+  updatePanelAudioButtons();
 </script>
 {% include "lab/_teacher_audio.html" %}
-</body>
-</html>
+{% endblock %}

@@ -1,40 +1,54 @@
 """من فتح صفحة الطالب الآن. يعمل داخل عملية واحدة (جهاز المعلم)، لذلك يكفي ذاكرة بسيطة."""
 
-_students = {}   # رقم الجهاز -> مجموعة قنوات WebSocket
-_teachers = set()
+from collections import defaultdict
+
+# device_uuid -> {channel, number, classroom_id}
+_students = {}
+# teacher_group -> set of channels
+_teachers = defaultdict(set)
 
 
-def add_student(number, channel):
-    _students.setdefault(number, set()).add(channel)
+def add_student(device_uuid, channel, number=None, classroom_id=None):
+    _students[device_uuid] = {"channel": channel, "number": number, "classroom_id": classroom_id}
 
 
-def other_student_channels(number, channel):
-    return [c for c in _students.get(number, ()) if c != channel]
+def other_student_channels(device_uuid, channel):
+    student = _students.get(device_uuid)
+    if not student or student["channel"] == channel:
+        return []
+    return [student["channel"]]
 
 
-def remove_student(number, channel):
+def remove_student(device_uuid, channel):
     """يرجع True إذا لم يبقَ أي اتصال لهذا الجهاز."""
-    channels = _students.get(number)
-    if channels is None:
+    student = _students.get(device_uuid)
+    if student is None:
         return True
-    channels.discard(channel)
-    if not channels:
-        del _students[number]
-        return True
-    return False
+    if student["channel"] != channel:
+        return False
+    del _students[device_uuid]
+    return True
 
 
 def online_numbers():
-    return set(_students)
+    """جميع أرقام الأجهزة المتصلة (للحالة القديمة/التوافق)."""
+    return {s["number"] for s in _students.values() if s["number"] is not None}
 
 
-def add_teacher(channel):
-    _teachers.add(channel)
+def online_numbers_for_classroom(classroom_id):
+    """أرقام الأجهزة المتصلة في قاعة معينة."""
+    if classroom_id is None:
+        return online_numbers()
+    return {s["number"] for s in _students.values() if s["number"] is not None and s.get("classroom_id") == classroom_id}
 
 
-def other_teacher_channels(channel):
-    return [c for c in _teachers if c != channel]
+def add_teacher(teacher_group, channel):
+    _teachers[teacher_group].add(channel)
 
 
-def remove_teacher(channel):
-    _teachers.discard(channel)
+def other_teacher_channels(teacher_group, channel):
+    return [c for c in _teachers.get(teacher_group, set()) if c != channel]
+
+
+def remove_teacher(teacher_group, channel):
+    _teachers[teacher_group].discard(channel)

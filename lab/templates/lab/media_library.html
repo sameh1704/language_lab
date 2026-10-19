@@ -1,0 +1,270 @@
+{% extends "lab/base.html" %}
+{% load i18n %}
+{% block title %}{% translate "المكتبة الوسائطية" %}{% endblock %}
+{% block style %}
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: "Segoe UI", Tahoma, Arial, sans-serif; background: #f3f4f6; margin: 0; color: #111827; }
+  header { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;
+           padding: 12px 20px; background: #fff; border-bottom: 1px solid #e5e7eb; }
+  header h1 { font-size: 20px; margin: 0; }
+  .bar { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between;
+         padding: 12px 20px; }
+  .breadcrumbs { font-size: 14px; }
+  .breadcrumbs a { color: #2563eb; text-decoration: none; }
+  .filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .filters input, .filters select { font: inherit; padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 6px; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  .actions button { font: inherit; font-size: 14px; padding: 8px 14px; border-radius: 8px; cursor: pointer;
+                    border: 1px solid #d1d5db; background: #fff; }
+  .actions button:hover { background: #f9fafb; }
+  .actions .primary { background: #2563eb; border-color: #2563eb; color: #fff; }
+  .actions .primary:hover { background: #1d4ed8; }
+  .actions .danger { background: #dc2626; border-color: #dc2626; color: #fff; }
+  .actions .danger:hover { background: #b91c1c; }
+  #grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; padding: 12px 20px 28px; }
+  .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 6px; cursor: pointer; position: relative; }
+  .card:hover { border-color: #2563eb; }
+  .card .name { font-size: 14px; font-weight: 600; word-break: break-word; }
+  .card .meta { font-size: 12px; color: #6b7280; }
+  .card .actions { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
+  .card .actions button { font-size: 12px; padding: 4px 8px; border-radius: 6px; border: 1px solid #d1d5db; background: #fff; cursor: pointer; }
+  .card .actions .danger { background: #dc2626; border-color: #dc2626; color: #fff; }
+  .folder-icon { font-size: 32px; }
+  .empty { padding: 40px 20px; text-align: center; color: #6b7280; }
+  #modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 1000; align-items: center; justify-content: center; }
+  #modal-overlay.open { display: flex; }
+  #modal { background: #fff; border-radius: 12px; padding: 20px; width: 90%; max-width: 480px; }
+  #modal h2 { margin: 0 0 12px; font-size: 18px; }
+  #modal input, #modal select { font: inherit; width: 100%; padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 8px; margin-bottom: 10px; }
+  #modal .actions { display: flex; gap: 8px; justify-content: flex-end; }
+  #msg { margin-inline: 20px; min-height: 22px; font-size: 14px; color: #374151; }
+  .error { color: #dc2626; }
+  .success { color: #15803d; }
+</style>
+{% endblock %}
+{% block content %}
+<header>
+  <h1>{% translate "المكتبة الوسائطية" %}</h1>
+  <div>
+    <a href="{% url 'dashboard' %}" style="color:#2563eb;text-decoration:none;font-size:14px;">{% translate "لوحة التحكم" %}</a>
+  </div>
+</header>
+
+<div class="bar">
+  <div class="breadcrumbs">
+    {% if breadcrumbs %}
+      <a href="?folder=">{% translate "الرئيسية" %}</a>
+      {% for b in breadcrumbs %}
+        / <a href="?folder={{ b.id }}">{{ b.name }}</a>
+      {% endfor %}
+    {% else %}
+      <a href="?folder=">{% translate "الرئيسية" %}</a>
+    {% endif %}
+  </div>
+  <div class="filters">
+    <form method="get" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+      <input type="text" name="q" placeholder="{% translate 'بحث...' %}" value="{{ search|default:'' }}">
+      <select name="type">
+        <option value="">{% translate "كل الأنواع" %}</option>
+        {% for value, label in media_type_choices %}
+          <option value="{{ value }}" {% if media_type == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <input type="text" name="lang" placeholder="{% translate 'اللغة (en, ar...)' %}" value="{{ content_language|default:'' }}">
+      <input type="hidden" name="folder" value="{{ folder.id|default:'' }}">
+      <button type="submit" class="primary">{% translate "بحث" %}</button>
+      <a href="?" style="font-size:14px;color:#2563eb;text-decoration:none;">{% translate "إعادة ضبط" %}</a>
+    </form>
+  </div>
+  <div class="actions">
+    <button class="primary" onclick="openCreateFolderModal()">{% translate "مجلد جديد" %}</button>
+    <button class="primary" onclick="openUploadModal()">{% translate "رفع ملف" %}</button>
+  </div>
+</div>
+
+<div id="msg"></div>
+
+<div id="grid">
+  {% for f in folders %}
+    <div class="card" onclick="location.href='?folder={{ f.id }}'">
+      <div class="folder-icon">📁</div>
+      <div class="name">{{ f.name }}</div>
+      <div class="meta">{% translate "مجلد" %} &middot; {{ f.children.count }} {% translate "مجلد فرعي" %}, {{ f.assets.count }} {% translate "ملف" %}</div>
+      <div class="actions" onclick="event.stopPropagation()">
+        <button onclick="renameFolder({{ f.id }}, '{{ f.name|escapejs }}')">{% translate "إعادة تسمية" %}</button>
+        {% if not f.assets.exists and not f.children.exists %}
+          <button class="danger" onclick="deleteFolder({{ f.id }})">{% translate "حذف" %}</button>
+        {% endif %}
+      </div>
+    </div>
+  {% empty %}
+    {% if not folder %}
+      <div class="empty">{% translate "لا توجد مجلدات في الرئيسية." %}</div>
+    {% endif %}
+  {% endfor %}
+
+  {% for a in assets %}
+    <div class="card">
+      <div class="name">{{ a.title }}</div>
+      <div class="meta">{{ a.get_media_type_display }} &middot; {{ a.size|filesizeformat }} &middot; {{ a.mime_type }}</div>
+      <div class="meta">{% if a.content_language %}{{ a.content_language }}{% endif %}</div>
+      <div class="actions">
+        <a href="{{ a.file.url }}" download><button>{% translate "تنزيل" %}</button></a>
+        <button onclick="renameAsset({{ a.id }}, '{{ a.title|escapejs }}')">{% translate "إعادة تسمية" %}</button>
+        <button onclick="moveAsset({{ a.id }})">{% translate "نقل" %}</button>
+        <button class="danger" onclick="deleteAsset({{ a.id }})">{% translate "حذف" %}</button>
+      </div>
+    </div>
+  {% empty %}
+    {% if folder %}
+      <div class="empty">{% translate "هذا المجلد فارغ." %}</div>
+    {% endif %}
+  {% endfor %}
+</div>
+
+<div id="modal-overlay">
+  <div id="modal">
+    <h2 id="modal-title">{% translate "نافذة" %}</h2>
+    <div id="modal-body"></div>
+    <div class="actions">
+      <button onclick="closeModal()">{% translate "إلغاء" %}</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block script %}
+<script>
+  function showMsg(text, cls) {
+    const el = document.getElementById('msg');
+    el.textContent = text;
+    el.className = cls || '';
+  }
+
+  function openModal(html) {
+    document.getElementById('modal-body').innerHTML = html;
+    document.getElementById('modal-overlay').classList.add('open');
+  }
+
+  function closeModal() {
+    document.getElementById('modal-overlay').classList.remove('open');
+  }
+
+  async function post(action, data) {
+    const form = new FormData();
+    for (const key in data) form.append(key, data[key]);
+    const res = await fetch(`{% url 'media_api' action='PLACEHOLDER' %}?action=${action}`, {
+      method: 'POST',
+      headers: {'X-CSRFToken': '{{ csrf_token }}'},
+      body: form,
+      credentials: 'same-origin',
+    });
+    const json = await res.json();
+    if (!res.ok || json.error) throw new Error(json.error || 'Error');
+    return json;
+  }
+
+  async function openUploadModal() {
+    const html = `
+      <form id="upload-form">
+        <input type="file" id="upload-file" required>
+        <input type="text" id="upload-title" placeholder="{% translate 'العنوان' %}">
+        <textarea id="upload-desc" placeholder="{% translate 'الوصف' %}"></textarea>
+        <input type="text" id="upload-lang" placeholder="{% translate 'لغة المحتوى (en, ar...)' %}">
+        <div class="actions">
+          <button type="submit" class="primary">{% translate "رفع" %}</button>
+          <button type="button" onclick="closeModal()">{% translate "إلغاء" %}</button>
+        </div>
+      </form>
+    `;
+    document.getElementById('modal-title').textContent = '{% translate "رفع ملف" %}';
+    openModal(html);
+    document.getElementById('upload-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fileInput = document.getElementById('upload-file');
+      const title = document.getElementById('upload-title').value;
+      const desc = document.getElementById('upload-desc').value;
+      const lang = document.getElementById('upload-lang').value;
+      if (!fileInput.files[0]) return;
+      const form = new FormData();
+      form.append('file', fileInput.files[0]);
+      form.append('title', title);
+      form.append('description', desc);
+      form.append('content_language', lang);
+      form.append('folder_id', '{{ folder.id|default:"" }}');
+      const res = await fetch(`{% url 'media_api' action='upload' %}`, {
+        method: 'POST',
+        headers: {'X-CSRFToken': '{{ csrf_token }}'},
+        body: form,
+        credentials: 'same-origin',
+      });
+      const json = await res.json();
+      if (json.error) { showMsg(json.error, 'error'); return; }
+      showMsg('{% translate "تم الرفع بنجاح" %}', 'success');
+      closeModal();
+      location.reload();
+    });
+  }
+
+  async function renameAsset(id, currentTitle) {
+    const title = prompt('{% translate "العنوان الجديد" %}', currentTitle);
+    if (title === null) return;
+    const form = new FormData();
+    form.append('id', id);
+    form.append('title', title);
+    await post('rename_asset', {id, title});
+    showMsg('{% translate "تم التحديث" %}', 'success');
+    location.reload();
+  }
+
+  async function moveAsset(id) {
+    const folderId = prompt('{% translate "معرف المجلد الهدف (اتركه فارغاً للرئيسية)" %}');
+    const form = new FormData();
+    form.append('id', id);
+    form.append('folder_id', folderId);
+    await post('move_asset', {id, folder_id: folderId});
+    showMsg('{% translate "تم النقل" %}', 'success');
+    location.reload();
+  }
+
+  async function deleteAsset(id) {
+    if (!confirm('{% translate "تأكيد الحذف؟" %}')) return;
+    const form = new FormData();
+    form.append('id', id);
+    await post('delete_asset', {id});
+    showMsg('{% translate "تم الحذف" %}', 'success');
+    location.reload();
+  }
+
+  async function openCreateFolderModal() {
+    const name = prompt('{% translate "اسم المجلد" %}');
+    if (!name) return;
+    const form = new FormData();
+    form.append('name', name);
+    form.append('parent_id', '{{ folder.id|default:"" }}');
+    await post('create_folder', {name, parent_id: '{{ folder.id|default:"" }}'});
+    showMsg('{% translate "تم الإنشاء" %}', 'success');
+    location.reload();
+  }
+
+  async function renameFolder(id, currentName) {
+    const name = prompt('{% translate "الاسم الجديد" %}', currentName);
+    if (name === null) return;
+    const form = new FormData();
+    form.append('id', id);
+    form.append('name', name);
+    await post('rename_folder', {id, name});
+    showMsg('{% translate "تم التحديث" %}', 'success');
+    location.reload();
+  }
+
+  async function deleteFolder(id) {
+    if (!confirm('{% translate "تأكيد حذف المجلد؟" %}')) return;
+    const form = new FormData();
+    form.append('id', id);
+    await post('delete_folder', {id});
+    showMsg('{% translate "تم الحذف" %}', 'success');
+    location.reload();
+  }
+</script>
+{% endblock %}

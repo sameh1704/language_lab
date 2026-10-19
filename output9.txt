@@ -1,0 +1,3 @@
+  File "F:\ponix lab\language_lab\debug_test3.py", line 70
+    print(f"Student hello: {hello}")
+IndentationError: unexpected indent
